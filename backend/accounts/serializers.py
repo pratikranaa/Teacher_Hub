@@ -1,0 +1,291 @@
+from rest_framework import serializers
+from django.contrib.auth import get_user_model, authenticate
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, smart_str, DjangoUnicodeDecodeError
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from .models import TeacherProfile, StudentProfile, SchoolStaff, TeacherAvailability
+from .utils import send_email
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import TeacherProfile, StudentProfile, SchoolStaff, User, TeacherAvailability, School
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import exceptions
+
+USER_TYPE_CHOICES = (
+    ('SCHOOL_ADMIN', 'School Administrator'),
+    ('PRINCIPAL', 'School Principal'),
+    ('INTERNAL_TEACHER', 'Internal Teacher'),
+    ('EXTERNAL_TEACHER', 'External Teacher'),
+    ('STUDENT', 'Student'),
+    ('PARENT', 'Parent'),
+)
+
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+    user_type = serializers.ChoiceField(choices=USER_TYPE_CHOICES, write_only=True)
+    phone_number = serializers.CharField(required=False)
+    school_name = serializers.ChoiceField(choices=[], required=False)
+
+    class Meta:
+        model = User
+        fields = ('email', 'username', 'password', 'confirm_password', 'user_type', 'phone_number', 'school_name')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['school_name'].choices = [(school.id, school.school_name) for school in School.objects.all()]
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs.pop('confirm_password'):
+            raise serializers.ValidationError("Passwords do not match")
+        if attrs['user_type'] != 'EXTERNAL_TEACHER' and not attrs.get('school_name'):
+            raise serializers.ValidationError("School name is required for all user types except external teachers")
+        return attrs
+
+    def create(self, validated_data):
+        school_id = validated_data.pop('school_name', None)
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
+        )
+        user.phone_number = validated_data.get('phone_number', '')
+        user.user_type = validated_data['user_type']
+        user.save()
+
+        if user.user_type != 'EXTERNAL_TEACHER' and school_id:
+            school = School.objects.get(id=school_id)
+            if user.user_type == 'SCHOOL_ADMIN':
+                if SchoolStaff.objects.filter(school=school, role='ADMIN').exists():
+                    raise serializers.ValidationError("This school already has an assigned school administrator.")
+                SchoolStaff.objects.create(user=user, school=school, role='ADMIN')
+            elif user.user_type == 'PRINCIPAL':
+                if SchoolStaff.objects.filter(school=school, role='PRINCIPAL').exists():
+                    raise serializers.ValidationError("This school already has an assigned principal.")
+                SchoolStaff.objects.create(user=user, school=school, role='PRINCIPAL')
+            elif user.user_type == 'INTERNAL_TEACHER':
+                TeacherProfile.objects.create(user=user, school=school, teacher_type='INTERNAL')
+                SchoolStaff.objects.create(user=user, school=school, role='TEACHER')
+            elif user.user_type == 'STUDENT':
+                StudentProfile.objects.create(user=user, school=school)
+
+        return user
+    
+
+
+class UserLoginSerializer(TokenObtainPairSerializer):
+    username_field = User.USERNAME_FIELD
+
+    def validate(self, attrs):
+        try:
+            data = super().validate(attrs)
+        except exceptions.AuthenticationFailed:
+            raise serializers.ValidationError("Invalid credentials")
+
+        user = self.user
+
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled.")
+
+        data.update({
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'user_type': user.user_type,
+        })
+
+        return data
+    
+
+class SendPasswordResetEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=255)
+
+    def validate(self, attrs):
+        email = attrs.get('email')
+        if User.objects.filter(email=email).exists():
+            user = User.objects.get(email=email)
+            uid = urlsafe_base64_encode(force_bytes(user.id))
+            token = PasswordResetTokenGenerator().make_token(user)
+            link = f"http://127.0.0.1:8000/reset-password/{uid}_{token}/"
+            subject = "Password Reset Requested"
+            message = f"Set your new password by clicking on the below link. Thank You :)\n{link}"
+            status = send_email(subject, message, email)
+            if status == "0":
+                raise serializers.ValidationError('Email sending failed. Please try again')
+            return attrs
+        else:
+            raise serializers.ValidationError('You are not a registered user.')
+
+class UserPasswordResetSerializer(serializers.Serializer):
+    password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)
+    confirm_password = serializers.CharField(max_length=255, style={'input_type': 'password'}, write_only=True)
+
+    def validate(self, attrs):
+        password = attrs.get('password')
+        confirm_password = attrs.get('confirm_password')
+        uid = self.context.get('uid')
+        token = self.context.get('token')
+        if password != confirm_password:
+            raise serializers.ValidationError("Password and Confirm Password do not match")
+        try:
+            user_id = smart_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(id=user_id)
+            if not PasswordResetTokenGenerator().check_token(user, token):
+                raise serializers.ValidationError("Token is not valid or expired")
+            user.set_password(password)
+            user.save()
+            return attrs
+        except DjangoUnicodeDecodeError:
+            raise serializers.ValidationError('Token is not valid or expired')
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+
+    def validate(self, attrs):
+        user = self.context['request'].user
+        if not user.check_password(attrs['current_password']):
+            raise serializers.ValidationError("Current password is incorrect")
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+
+class TeacherProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeacherProfile
+        exclude = ['user']
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+class SchoolProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = School
+        exclude = ['user']
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentProfile
+        exclude = ['user']
+        
+class SchoolStaffSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolStaff
+        exclude = ['user']
+        
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
+class TeacherAvailabilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeacherAvailability
+        exclude = ['teacher']
+        
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    teacher_profile = TeacherProfileSerializer( read_only=True)
+    student_profile = StudentProfileSerializer(read_only=True)
+    school_staff_profile = SchoolStaffSerializer(read_only=True)
+    school_profile = SchoolProfileSerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'user_type', 'phone_number', 'profile_image', 
+            'created_at', 'updated_at', 'teacher_profile', 'student_profile', 
+            'school_staff_profile', 'school_profile'
+        ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        user_type = instance.user_type
+
+        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            teacher_profile = instance.teacher_profile
+            if user_type == 'INTERNAL_TEACHER':
+                school_data = SchoolProfileSerializer(teacher_profile.school).data
+                representation.update(school_data)
+            representation.update(TeacherProfileSerializer(teacher_profile).data)
+        
+        elif user_type == 'STUDENT':
+            student_profile = instance.student_profile
+            representation.update(StudentProfileSerializer(student_profile).data)
+        
+        elif user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            admin_profile = instance.school_staff
+            school_data = SchoolProfileSerializer(admin_profile.school).data
+            representation.update(school_data)
+            representation.update(SchoolStaffSerializer(admin_profile).data)
+        
+        return representation
+
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    teacher_profile = TeacherProfileSerializer(required=False, allow_null=True)
+    school_profile = SchoolProfileSerializer(required=False, allow_null=True)
+    student_profile = StudentProfileSerializer(required=False, allow_null=True)
+    school_staff_profile = SchoolStaffSerializer(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 
+            'username', 
+            'email', 
+            'phone_number',
+            'user_type',
+            'profile_image',
+            'teacher_profile',
+            'school_profile',
+            'student_profile'
+            'school_staff_profile'
+        ]
+        read_only_fields = ['email', 'user_type']
+
+    def update(self, instance, validated_data):
+        # Handle nested profile updates
+        teacher_profile_data = validated_data.pop('teacher_profile', None)
+        school_profile_data = validated_data.pop('school_profile', None)
+        student_profile_data = validated_data.pop('student_profile', None)
+        school_staff_profile_data = validated_data.pop('school_staff_profile', None)
+
+        # Update user data
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update teacher profile if exists
+        if teacher_profile_data and hasattr(instance, 'teacher_profile'):
+            for attr, value in teacher_profile_data.items():
+                setattr(instance.teacher_profile, attr, value)
+            instance.teacher_profile.save()
+
+        # Update school profile if exists
+        if school_profile_data and hasattr(instance, 'school_profile'):
+            for attr, value in school_profile_data.items():
+                setattr(instance.school_profile, attr, value)
+            instance.school_profile.save()
+
+        # Update student profile if exists
+        if student_profile_data and hasattr(instance, 'student_profile'):
+            for attr, value in student_profile_data.items():
+                setattr(instance.student_profile, attr, value)
+            instance.student_profile.save()
+            
+        # Update school staff profile if exists
+        if school_staff_profile_data and hasattr(instance, 'school_staff_profile'):
+            for attr, value in school_staff_profile_data.items():
+                setattr(instance.school_staff_profile, attr, value)
+            instance.school_staff_profile.save()
+
+        return instance
+    
