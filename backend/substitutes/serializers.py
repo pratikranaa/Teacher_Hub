@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from .models import SubstituteRequest, TeacherAvailability
 from accounts.models import School
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 class TeacherAvailabilitySerializer(serializers.ModelSerializer):
     """Serializer for Teacher Availability"""
@@ -64,6 +66,27 @@ class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
             
         validated_data['school'] = school
         validated_data['requested_by'] = user
+
+    
+        # After saving the request
+        # channel_layer = get_channel_layer()
+        # async_to_sync(channel_layer.group_send)(
+        #     "teachers",
+        #     {
+        #         "type": "new_request",
+        #         "request": {
+        #             "id": validated_data['id'],
+        #             "grade": validated_data['grade'],
+        #             "section": validated_data['section'],
+        #             "subject": validated_data['subject'],
+        #             "school": school.name,
+        #             "date": validated_data['date'],
+        #             "time": f"{validated_data['start_time']} - {validated_data['end_time']}",
+        #             "Created_at" : validated_data['created_at'],
+        #         }
+        #     }
+        # )
+        
         return super().create(validated_data)
 
 class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
