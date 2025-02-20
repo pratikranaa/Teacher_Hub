@@ -16,29 +16,32 @@ def match_teachers_to_request(request_id):
     """Initial matching of teachers to a substitute request"""
     try:
         request = SubstituteRequest.objects.get(id=request_id)
+        settings = request.school.get_algorithm_settings
         
         # First notify school staff
         notify_school_staff(request)
         
-        # Get first batch of ranked teachers
-        ranked_teachers = get_ranked_teachers(request)[:BATCH_SIZE]
+        # Get first batch of ranked teachers using school settings
+        ranked_teachers = get_ranked_teachers(request, settings)[:settings['batch_size']]
         process_teacher_batch(request, ranked_teachers, batch_number=1)
         
         # Update request status
         request.status = 'AWAITING_ACCEPTANCE'
         request.save()
         
-        # Schedule next batch check
+        # Schedule next batch check using school wait time
         check_request_status.apply_async(
             args=[request_id, 1],
-            countdown=WAIT_TIME
+            countdown=settings['wait_time_minutes'] * 60
         )
 
     except SubstituteRequest.DoesNotExist:
         return
 
-def get_ranked_teachers(request):
-    """Get ranked list of available teachers based on criteria"""
+def get_ranked_teachers(request, settings):
+    """Get ranked list of available teachers based on school criteria"""
+    weights = settings['weights']
+    
     return TeacherAvailability.objects.filter(
         Q(date=request.date) &
         Q(start_time__lte=request.start_time) &
@@ -49,13 +52,15 @@ def get_ranked_teachers(request):
         teacher=request.requested_by
     ).annotate(
         degree_weight=Case(
-            When(teacher__teacher_profile__qualification='PhD', then=3),
-            When(teacher__teacher_profile__qualification='Masters', then=2),
-            default=1,
+            When(teacher__teacher_profile__qualification='PhD', 
+                 then=Value(weights['qualification']['PhD'])),
+            When(teacher__teacher_profile__qualification='Masters', 
+                 then=Value(weights['qualification']['Masters'])),
+            default=Value(weights['qualification']['Bachelors']),
             output_field=IntegerField(),
         ),
-        rating_weight=F('teacher__teacher_profile__rating') * 2,
-        experience_weight=F('teacher__teacher_profile__experience_years') * 0.5,
+        rating_weight=F('teacher__teacher_profile__rating') * weights['rating_multiplier'],
+        experience_weight=F('teacher__teacher_profile__experience_years') * weights['experience_multiplier'],
         total_score=F('degree_weight') + F('rating_weight') + F('experience_weight')
     ).order_by('-total_score')
 

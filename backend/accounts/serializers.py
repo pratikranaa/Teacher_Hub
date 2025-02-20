@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from .models import TeacherProfile, StudentProfile, SchoolStaff, User, TeacherAvailability, School
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import exceptions
+from django.utils import timezone
 
 USER_TYPE_CHOICES = (
     ('SCHOOL_ADMIN', 'School Administrator'),
@@ -51,6 +52,16 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         )
         user.phone_number = validated_data.get('phone_number', '')
         user.user_type = validated_data['user_type']
+
+
+        # Set verification status based on user type
+        if user.user_type == 'SCHOOL_ADMIN':
+            user.profile_verification_status = 'VERIFIED'
+            user.profile_completed = True
+        else:
+            user.profile_verification_status = 'PENDING'
+            user.profile_completed = False
+            
         user.save()
 
         if user.user_type != 'EXTERNAL_TEACHER' and school_id:
@@ -71,6 +82,31 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
         return user
     
+class AlgorithmSettingsSerializer(serializers.Serializer):
+    batch_size = serializers.IntegerField(min_value=1, max_value=50)
+    wait_time_minutes = serializers.IntegerField(min_value=1, max_value=60)
+    weights = serializers.DictField(
+        child=serializers.DictField(
+            child=serializers.FloatField(min_value=0.1, max_value=10.0)
+        )
+    )
+
+    def validate_weights(self, value):
+        required_keys = ['qualification', 'rating_multiplier', 'experience_multiplier']
+        if not all(key in value for key in required_keys):
+            raise serializers.ValidationError(f"Missing required weight categories: {required_keys}")
+        return value
+
+
+class ProfileVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['profile_verification_status', 'verification_notes']
+
+    def validate(self, data):
+        if not self.instance.profile_completed:
+            raise serializers.ValidationError("Cannot verify an incomplete profile")
+        return data    
 
 
 class UserLoginSerializer(TokenObtainPairSerializer):
@@ -289,3 +325,17 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
         return instance
     
+class SchoolProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = School
+        exclude = ['user', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'verified', 'subscription_status']
+
+    def validate(self, data):
+        if 'established_year' in data:
+            current_year = timezone.now().year
+            if data['established_year'] > current_year:
+                raise serializers.ValidationError({
+                    "established_year": "Establishment year cannot be in the future"
+                })
+        return data

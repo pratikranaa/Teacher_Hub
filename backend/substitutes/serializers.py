@@ -59,10 +59,10 @@ class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         
         # Get school based on user type
-        if user.user_type == 'SCHOOL_ADMIN' or 'INTERNAL_TEACHER':
+        if user.user_type == 'SCHOOL_ADMIN' or 'INTERNAL_TEACHER' or 'PRINCIPAL':
             school = School.objects.get(user=user)
         else:
-            raise serializers.ValidationError("Only school admins and internal teachers can create substitute requests")
+            raise serializers.ValidationError("Only school admins, principals and internal teachers can create substitute requests")
             
         validated_data['school'] = school
         validated_data['requested_by'] = user
@@ -155,3 +155,4 @@ class SubstituteRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubstituteRequest
         fields = '__all__'
+        

@@ -69,3 +69,30 @@ def decode_api_name(value):
     captalize = value.title()
     value = captalize.replace("_", " ")
     return value
+
+
+from django.contrib.admin.models import LogEntry, CHANGE
+from django.contrib.contenttypes.models import ContentType
+
+class ProfileChangeLoggingMixin:
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        changed_fields = []
+        
+        for field, value in serializer.validated_data.items():
+            if getattr(instance, field) != value:
+                changed_fields.append(field)
+        
+        # Save the changes
+        instance = serializer.save()
+        
+        # Log the change
+        if changed_fields:
+            LogEntry.objects.create(
+                user_id=self.request.user.id,
+                content_type_id=ContentType.objects.get_for_model(instance).id,
+                object_id=instance.id,
+                object_repr=str(instance),
+                action_flag=CHANGE,
+                change_message=f"Changed {', '.join(changed_fields)}"
+            )

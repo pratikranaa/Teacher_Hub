@@ -14,6 +14,12 @@ class User(AbstractUser):
         ('EXTERNAL_TEACHER', 'External Teacher'),
         ('STUDENT', 'Student'),
     )
+    
+    VERIFICATION_STATUS = (
+        ('PENDING', 'Pending'),
+        ('VERIFIED', 'Verified'),
+        ('REJECTED', 'Rejected')
+    )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(_('email address'), unique=True)
@@ -23,6 +29,13 @@ class User(AbstractUser):
     profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    profile_verification_status = models.CharField(
+        max_length=20,
+        choices=VERIFICATION_STATUS,
+        default='PENDING'
+    )
+    profile_completed = models.BooleanField(default=False)
+    verification_notes = models.TextField(blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'user_type']
@@ -44,6 +57,8 @@ class User(AbstractUser):
         related_name='accounts_user_set',  # Custom related_name
         related_query_name='accounts_user'
     )
+        
+
 
 
 
@@ -120,6 +135,29 @@ class School(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     subscription_status = models.CharField(max_length=20, choices=SUBSCRIPTIONS, default='BASIC')
+    # Algorithm settings
+    matching_algorithm_settings = models.JSONField(
+        default=dict,
+        help_text="Custom settings for teacher matching algorithm"
+    )
+
+    @property
+    def get_algorithm_settings(self):
+        """Get algorithm settings with defaults"""
+        default_settings = {
+            'batch_size': 10,
+            'wait_time_minutes': 10,
+            'weights': {
+                'qualification': {
+                    'PhD': 3,
+                    'Masters': 2,
+                    'Bachelors': 1
+                },
+                'rating_multiplier': 2.0,
+                'experience_multiplier': 0.5
+            }
+        }
+        return {**default_settings, **self.matching_algorithm_settings}
 
 class TeacherProfile(models.Model):
     AVAILABILITY_STATUS = (

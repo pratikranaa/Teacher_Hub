@@ -18,15 +18,16 @@ from .serializers import (
     TeacherProfileSerializer, StudentProfileSerializer,
     SchoolProfileSerializer, TeacherAvailabilitySerializer,
     ChangePasswordSerializer, UserPasswordResetSerializer,
-    SendPasswordResetEmailSerializer, UserProfileUpdateSerializer
+    SendPasswordResetEmailSerializer, UserProfileUpdateSerializer, 
+    ProfileVerificationSerializer, AlgorithmSettingsSerializer, 
+    UserProfileSerializer
 )
 from .models import TeacherProfile, StudentProfile, School, TeacherAvailability
-from .utils import send_email, success_msg, error
+from .utils import send_email, success_msg, error, ProfileChangeLoggingMixin
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .serializers import UserProfileSerializer
 from .models import User, TeacherProfile, StudentProfile, School, SchoolStaff
 from django.core.exceptions import ValidationError
 
@@ -132,6 +133,57 @@ def change_password(request):
         serializer.save()
         return Response(success_msg('Password changed successfully'))
     return Response(error(serializer.errors))
+
+
+
+class ProfileCompletionView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        return Response({
+            "message": "Please complete your profile",
+            "user_type": request.user.user_type
+        })
+
+class VerificationPendingView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        return Response({
+            "message": "Your profile is pending verification",
+            "status": request.user.profile_verification_status
+        })
+
+
+class ProfileVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id):
+        if request.user.user_type != 'SCHOOL_ADMIN':
+            return Response({"error": "Only school admins can verify profiles"}, 
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            user = User.objects.get(id=user_id)
+            school = School.objects.get(user=request.user)
+
+            # Verify if user belongs to admin's school
+            if user.user_type in ['PRINCIPAL', 'INTERNAL_TEACHER', 'STUDENT']:
+                if user.student_profile and user.student_profile.school != school:
+                    return Response({"error": "User does not belong to your school"},
+                                  status=status.HTTP_403_FORBIDDEN)
+                if user.teacher_profile and user.teacher_profile.school != school:
+                    return Response({"error": "User does not belong to your school"},
+                                  status=status.HTTP_403_FORBIDDEN)
+
+            serializer = ProfileVerificationSerializer(user, data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class UserDashboardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -296,3 +348,84 @@ class UpdateAvailabilityView(APIView):
             serializer.save()
             return Response({"message": "Availability updated successfully", "data": serializer.data}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class SchoolAlgorithmSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.user_type != 'SCHOOL_ADMIN':
+            return Response(
+                {"error": "Only school administrators can access algorithm settings"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            school = School.objects.get(user=request.user)
+            return Response(school.get_algorithm_settings)
+        except School.DoesNotExist:
+            return Response(
+                {"error": "School not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def put(self, request):
+        if request.user.user_type != 'SCHOOL_ADMIN':
+            return Response(
+                {"error": "Only school administrators can modify algorithm settings"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            school = School.objects.get(user=request.user)
+            serializer = AlgorithmSettingsSerializer(data=request.data)
+            
+            if serializer.is_valid():
+                school.matching_algorithm_settings = serializer.validated_data
+                school.save()
+                return Response(school.get_algorithm_settings)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except School.DoesNotExist:
+            return Response(
+                {"error": "School not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+            
+from rest_framework import generics, status
+from rest_framework.response import Response
+from .permissions import CanManageSchoolProfile
+
+class SchoolProfileView(ProfileChangeLoggingMixin, generics.RetrieveUpdateAPIView):
+    serializer_class = SchoolProfileSerializer
+    permission_classes = [CanManageSchoolProfile]
+    
+    def get_object(self):
+        if hasattr(self.request.user, 'school_staff'):
+            return self.request.user.school_staff.school
+        elif hasattr(self.request.user, 'school_profile'):
+            return self.request.user.school_profile
+        return None
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        if not instance:
+            return Response(
+                {"error": "School not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)
+
+class SchoolProfileDetailView(generics.RetrieveAPIView):
+    """View for retrieving school details by ID"""
+    serializer_class = SchoolProfileSerializer
+    queryset = School.objects.all()
+    permission_classes = [permissions.IsAuthenticated]

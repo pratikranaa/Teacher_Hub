@@ -68,3 +68,28 @@ class IsPrincipal(permissions.BasePermission):
         if hasattr(obj, 'school'):
             return obj.school == request.user.school_profile
         return False
+    
+class CanManageSchoolProfile(permissions.BasePermission):
+    """
+    Custom permission to only allow school admin and principal to edit school profile.
+    """
+    def has_permission(self, request, view):
+        # Allow read-only access to authenticated users
+        if request.method in permissions.SAFE_METHODS:
+            return request.user.is_authenticated
+        
+        # Check if user is school admin or principal
+        return request.user.is_authenticated and request.user.user_type in [
+            'SCHOOL_ADMIN', 'PRINCIPAL'
+        ]
+
+    def has_object_permission(self, request, view, obj):
+        # Allow read-only access to authenticated users
+        if request.method in permissions.SAFE_METHODS:
+            return request.user.is_authenticated
+        
+        # Check if user belongs to the school
+        if hasattr(request.user, 'school_staff'):
+            return (request.user.school_staff.school == obj and 
+                   request.user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL'])
+        return False
