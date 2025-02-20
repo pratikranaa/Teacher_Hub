@@ -3,18 +3,67 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, School, TeacherProfile, StudentProfile, SchoolStaff, TeacherAvailability
 
-
 class UserAdmin(BaseUserAdmin):
-    fieldsets = BaseUserAdmin.fieldsets + (
-        (None, {'fields': ('user_type', 'phone_number', 'profile_image', 'is_verified')}),
+    # Add custom fields to fieldsets
+    fieldsets = (
+        # Keep existing fieldsets
+        *BaseUserAdmin.fieldsets,
+        # Add new fieldset for custom fields
+        ('Profile Information', {
+            'fields': (
+                'user_type',
+                'phone_number',
+                'profile_image',
+                'is_verified',
+                'profile_verification_status',
+                'profile_completed',
+                'verification_notes'
+            )
+        }),
     )
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        (None, {'fields': ('user_type', 'phone_number', 'profile_image', 'is_verified')}),
+
+    # Add custom fields to "add" form
+    add_fieldsets = (
+        *BaseUserAdmin.add_fieldsets,
+        ('Profile Information', {
+            'fields': (
+                'user_type',
+                'phone_number',
+                'profile_image',
+                'is_verified',
+                'profile_verification_status',
+                'profile_completed',
+                'verification_notes'
+            )
+        }),
     )
-    list_display = ('username', 'email', 'user_type', 'is_staff', 'is_active', 'is_verified')
-    list_filter = ('user_type', 'is_staff', 'is_active', 'is_verified')
+
+    # Add fields to list display
+    list_display = (
+        'username', 
+        'email', 
+        'user_type',
+        'is_staff', 
+        'is_active',
+        'is_verified',
+        'profile_verification_status',
+        'profile_completed'
+    )
+
+    # Add fields to list filters
+    list_filter = (
+        'user_type',
+        'is_staff',
+        'is_active',
+        'is_verified',
+        'profile_verification_status',
+        'profile_completed'
+    )
+
+    search_fields = ('username', 'email', 'phone_number')
 
 admin.site.register(User, UserAdmin)
+
 
 class SchoolAdmin(admin.ModelAdmin):
     list_display = ('school_name', 'category', 'city', 'state', 'country', 'verified')

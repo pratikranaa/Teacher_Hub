@@ -120,18 +120,21 @@ class UserLoginSerializer(TokenObtainPairSerializer):
 
         user = self.user
 
-        if not user.is_active:
-            raise serializers.ValidationError("User account is disabled.")
-
+        # if not user.is_active:
+        #     raise serializers.ValidationError("User account is disabled.")
+        
+        # Add additional user data to response
         data.update({
-            'user_id': user.id,
+            'user_id': str(user.id),
             'username': user.username,
             'email': user.email,
             'user_type': user.user_type,
+            'profile_completed': user.profile_completed,
+            'profile_verification_status': user.profile_verification_status,
         })
 
         return data
-    
+
 
 class SendPasswordResetEmailSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=255)
