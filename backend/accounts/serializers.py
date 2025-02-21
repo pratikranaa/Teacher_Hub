@@ -342,3 +342,101 @@ class SchoolProfileSerializer(serializers.ModelSerializer):
                     "established_year": "Establishment year cannot be in the future"
                 })
         return data
+
+
+class ProfileCompletionSerializer(serializers.ModelSerializer):
+    teacher_profile = TeacherProfileSerializer(required=False)
+    student_profile = StudentProfileSerializer(required=False)
+    school_profile = SchoolProfileSerializer(required=False)
+    school_staff_profile = SchoolStaffSerializer(required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            'first_name', 
+            'last_name', 
+            'phone_number',
+            'address',
+            'profile_image',
+            'teacher_profile',
+            'student_profile',
+            'school_profile',
+            'school_staff_profile'
+        ]
+
+    def validate(self, data):
+        user = self.context['request'].user
+        
+        if not data.get('first_name'):
+            raise serializers.ValidationError("First name is required")
+        if not data.get('last_name'):
+            raise serializers.ValidationError("Last name is required")
+        if not data.get('phone_number'):
+            raise serializers.ValidationError("Phone number is required")
+
+        # Validate based on user type
+        if user.user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            if not data.get('teacher_profile'):
+                raise serializers.ValidationError("Teacher profile details are required")
+            teacher_data = data.get('teacher_profile')
+            if not teacher_data.get('qualification'):
+                raise serializers.ValidationError("Teacher qualification is required")
+            if not teacher_data.get('subjects'):
+                raise serializers.ValidationError("Teaching subjects are required")
+            if not teacher_data.get('experience_years'):
+                raise serializers.ValidationError("Teaching experience is required")
+
+        elif user.user_type == 'STUDENT':
+            if not data.get('student_profile'):
+                raise serializers.ValidationError("Student profile details are required")
+            student_data = data.get('student_profile')
+            if not student_data.get('grade'):
+                raise serializers.ValidationError("Grade is required")
+            if not student_data.get('parent_name'):
+                raise serializers.ValidationError("Parent name is required")
+            if not student_data.get('parent_phone'):
+                raise serializers.ValidationError("Parent phone is required")
+
+        elif user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            if not data.get('school_staff_profile'):
+                raise serializers.ValidationError("School staff profile details are required")
+
+        return data
+
+    def update(self, instance, validated_data):
+        # Update basic user information
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+        instance.address = validated_data.get('address', instance.address)
+        if validated_data.get('profile_image'):
+            instance.profile_image = validated_data.get('profile_image')
+
+        # Handle profile specific data
+        if instance.user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            teacher_data = validated_data.get('teacher_profile', {})
+            teacher_profile, created = TeacherProfile.objects.get_or_create(user=instance)
+            for attr, value in teacher_data.items():
+                setattr(teacher_profile, attr, value)
+            teacher_profile.save()
+
+        elif instance.user_type == 'STUDENT':
+            student_data = validated_data.get('student_profile', {})
+            student_profile, created = StudentProfile.objects.get_or_create(user=instance)
+            for attr, value in student_data.items():
+                setattr(student_profile, attr, value)
+            student_profile.save()
+
+        elif instance.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            staff_data = validated_data.get('school_staff_profile', {})
+            staff_profile, created = SchoolStaff.objects.get_or_create(user=instance)
+            for attr, value in staff_data.items():
+                setattr(staff_profile, attr, value)
+            staff_profile.save()
+
+        # Mark profile as completed
+        instance.profile_completed = True
+        instance.profile_verification_status = 'PENDING'
+        instance.save()
+
+        return instance

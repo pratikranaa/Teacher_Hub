@@ -4,14 +4,22 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, smart_str, DjangoUnicodeDecodeError
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.parsers import JSONParser
+from rest_framework import status
+from .serializers import UserPasswordResetSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
-from rest_framework import viewsets, permissions, status, generics
+from rest_framework import viewsets, permissions, status, generics, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import JSONParser
+from rest_framework import generics, status
+from rest_framework.response import Response
+from .permissions import CanManageSchoolProfile
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
@@ -20,7 +28,7 @@ from .serializers import (
     ChangePasswordSerializer, UserPasswordResetSerializer,
     SendPasswordResetEmailSerializer, UserProfileUpdateSerializer, 
     ProfileVerificationSerializer, AlgorithmSettingsSerializer, 
-    UserProfileSerializer
+    UserProfileSerializer, ProfileCompletionSerializer, SchoolStaffSerializer
 )
 from .models import TeacherProfile, StudentProfile, School, TeacherAvailability
 from .utils import send_email, success_msg, error, ProfileChangeLoggingMixin
@@ -51,11 +59,7 @@ def request_reset_email(request):
             return JsonResponse(response, status=201)
         return JsonResponse(serializer.errors, status=400)
 
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.parsers import JSONParser
-from rest_framework import status
-from .serializers import UserPasswordResetSerializer
+
 
 @csrf_exempt
 def resetPassword(request, uid, token):
@@ -138,12 +142,84 @@ def change_password(request):
 
 class ProfileCompletionView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
     
     def get(self, request):
-        return Response({
+        """Get the current profile completion state and required fields"""
+        user = request.user
+        profile_data = {
             "message": "Please complete your profile",
-            "user_type": request.user.user_type
-        })
+            "user_type": user.user_type,
+            "required_fields": self._get_required_fields(user.user_type),
+            "current_data": ProfileCompletionSerializer(user).data
+        }
+        return Response(profile_data)
+
+    def post(self, request):
+        """Handle profile completion submission"""
+        serializer = ProfileCompletionSerializer(
+            request.user,
+            data=request.data,
+            context={'request': request},
+            partial=True
+        )
+        
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                "message": "Profile completed successfully",
+                "data": serializer.data,
+                "verification_status": user.profile_verification_status
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_required_fields(self, user_type):
+        """Helper method to return required fields based on user type"""
+        base_fields = {
+            "first_name": "First Name",
+            "last_name": "Last Name",
+            "phone_number": "Phone Number",
+            "address": "Address",
+            "profile_image": "Profile Image (optional)"
+        }
+
+        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            return {
+                **base_fields,
+                "teacher_profile": {
+                    "qualification": "Educational Qualification",
+                    "subjects": "Teaching Subjects",
+                    "experience_years": "Years of Experience",
+                    "preferred_classes": "Preferred Classes",
+                    "teaching_methodology": "Teaching Methodology",
+                    "languages": "Languages Known",
+                    "can_teach_online": "Available for Online Teaching",
+                    "can_travel": "Available for Travel"
+                }
+            }
+        elif user_type == 'STUDENT':
+            return {
+                **base_fields,
+                "student_profile": {
+                    "grade": "Current Grade",
+                    "section": "Section",
+                    "roll_number": "Roll Number",
+                    "parent_name": "Parent/Guardian Name",
+                    "parent_phone": "Parent/Guardian Phone",
+                    "parent_email": "Parent/Guardian Email",
+                    "date_of_birth": "Date of Birth"
+                }
+            }
+        elif user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            return {
+                **base_fields,
+                "school_staff_profile": {
+                    "department": "Department",
+                    "employee_id": "Employee ID",
+                    "joining_date": "Date of Joining"
+                }
+            }
+        return base_fields
 
 class VerificationPendingView(APIView):
     permission_classes = [IsAuthenticated]
@@ -393,9 +469,7 @@ class SchoolAlgorithmSettingsView(APIView):
             )
             
             
-from rest_framework import generics, status
-from rest_framework.response import Response
-from .permissions import CanManageSchoolProfile
+
 
 class SchoolProfileView(ProfileChangeLoggingMixin, generics.RetrieveUpdateAPIView):
     serializer_class = SchoolProfileSerializer
