@@ -1,8 +1,38 @@
 from rest_framework import serializers
-from .models import SubstituteRequest, TeacherAvailability
+from .models import SubstituteRequest, TeacherAvailability, RequestInvitation
 from accounts.models import School
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+
+
+from django.urls import reverse
+from rest_framework import serializers
+
+class TeacherInvitationSerializer(serializers.ModelSerializer):
+    teacher_details = serializers.SerializerMethodField()
+    teacher_profile_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RequestInvitation
+        fields = ['id', 'status', 'invited_at', 'responded_at', 
+                 'response_note', 'batch_number', 'teacher_details',
+                 'teacher_profile_url']
+    
+    def get_teacher_profile_url(self, obj):
+        """Generate profile URL for the teacher"""
+        return reverse('fetch-user-profile', kwargs={'username': obj.teacher.username})
+    
+    def get_teacher_details(self, obj):
+        return {
+            'id': obj.teacher.id,
+            'name': obj.teacher.get_full_name(),
+            'email': obj.teacher.email,
+            'phone': obj.teacher.phone,
+            'experience': obj.teacher.teacher_profile.experience,
+            'subjects': obj.teacher.teacher_profile.subjects,
+            'rating': obj.teacher.teacher_profile.rating,
+            'availability_status': obj.teacher.teacher_profile.availability_status
+        }
 
 class TeacherAvailabilitySerializer(serializers.ModelSerializer):
     """Serializer for Teacher Availability"""
@@ -32,6 +62,8 @@ class TeacherAvailabilitySerializer(serializers.ModelSerializer):
             'duration'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
 
 class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
     """Serializer for Creating Substitute Requests"""
@@ -89,38 +121,20 @@ class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
         
         return super().create(validated_data)
 
+
+
 class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
     """Detailed Serializer for Substitute Requests"""
     assigned_teacher_details = serializers.SerializerMethodField()
     matching_teachers = serializers.SerializerMethodField()
+    current_status = serializers.SerializerMethodField()
+    invitations = TeacherInvitationSerializer(many=True, read_only=True)
+
     
     class Meta:
         model = SubstituteRequest
-        fields = [
-            'id',
-            'school',
-            'requested_by',
-            'original_teacher',
-            'assigned_teacher',
-            'assigned_teacher_details',
-            'subject',
-            'grade',
-            'date',
-            'start_time',
-            'end_time',
-            'status',
-            'priority',
-            'mode',
-            'description',
-            'requirements',
-            'special_instructions',
-            'meeting_link',
-            'cancellation_reason',
-            'matching_teachers',
-            'created_at',
-            'updated_at',
-            'duration'
-        ]
+        fields = '__all__'
+
         read_only_fields = [
             'id', 
             'created_at', 
@@ -143,6 +157,18 @@ class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
         """Get list of potential matching teachers"""
         matching_teachers = obj.get_matching_teachers()
         return TeacherAvailabilitySerializer(matching_teachers, many=True).data
+    
+    def get_current_status(self, obj):
+        return {
+            'total_invites': obj.invitations.count(),
+            'pending': obj.invitations.filter(status='PENDING').count(),
+            'accepted': obj.invitations.filter(status='ACCEPTED').count(),
+            'declined': obj.invitations.filter(status='DECLINED').count(),
+            'withdrawn': obj.invitations.filter(status='WITHDRAWN').count(),
+            'expired': obj.invitations.filter(status='EXPIRED').count(),
+        }
+    
+    
 
 
 from rest_framework import serializers
@@ -156,3 +182,4 @@ class SubstituteRequestSerializer(serializers.ModelSerializer):
         model = SubstituteRequest
         fields = '__all__'
         
+

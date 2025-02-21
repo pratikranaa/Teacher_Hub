@@ -6,8 +6,5 @@ router = DefaultRouter()
 router.register(r'substitute-requests', SubstituteRequestViewSet, basename='substitute-request')
 
 urlpatterns = [
-    path('', include(router.urls))
-    
+    path('', include(router.urls)),
 ]
-
-

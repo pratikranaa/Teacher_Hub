@@ -270,20 +270,25 @@ class SubstituteRequest(models.Model):
         
 
 class RequestInvitation(models.Model):
-    """
-    Tracks invitations sent to teachers for a substitute request.
-    """
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
         ('ACCEPTED', 'Accepted'),
         ('DECLINED', 'Declined'),
         ('WITHDRAWN', 'Withdrawn'),
+        ('EXPIRED', 'Expired')
     ]
-    substitute_request = models.ForeignKey(SubstituteRequest, on_delete=models.CASCADE)
-    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    
+    substitute_request = models.ForeignKey(SubstituteRequest, 
+                                         on_delete=models.CASCADE,
+                                         related_name='invitations')
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, 
+                              on_delete=models.CASCADE,
+                              related_name='substitute_invitations')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     invited_at = models.DateTimeField(auto_now_add=True)
     responded_at = models.DateTimeField(null=True, blank=True)
+    response_note = models.TextField(blank=True)  # For declined reasons
+    batch_number = models.IntegerField(default=1)  # Track which batch this invitation was part of
     
     class Meta:
         unique_together = ('substitute_request', 'teacher')
