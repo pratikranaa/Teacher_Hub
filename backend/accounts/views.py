@@ -38,6 +38,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import User, TeacherProfile, StudentProfile, School, SchoolStaff
 from django.core.exceptions import ValidationError
+from django.db import models
 
 
 User = get_user_model()
@@ -234,32 +235,101 @@ class VerificationPendingView(APIView):
 class ProfileVerificationView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        """Get list of pending profiles for verification"""
+        if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            return Response(
+                {"error": "Only school admin and verified principals can view pending verifications"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # For principals, ensure they are verified first
+        if (request.user.user_type == 'PRINCIPAL' and 
+            request.user.profile_verification_status != 'VERIFIED'):
+            return Response(
+                {"error": "Your profile needs to be verified first"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get the school
+        if request.user.user_type == 'SCHOOL_ADMIN':
+            school = School.objects.get(user=request.user)
+        else:
+            school = request.user.school_staff.school
+
+        # Get pending profiles from the school
+        pending_profiles = User.objects.filter(
+            profile_completed=True,
+            profile_verification_status='PENDING'
+        ).filter(
+            # Filter users belonging to the school
+            models.Q(student_profile__school=school) |
+            models.Q(teacher_profile__school=school) |
+            models.Q(school_staff__school=school)
+        ).exclude(
+            user_type__in=['SCHOOL_ADMIN', 'EXTERNAL_TEACHER']
+        )
+
+        serializer = UserProfileSerializer(pending_profiles, many=True)
+        return Response(serializer.data)
+
     def post(self, request, user_id):
-        if request.user.user_type != 'SCHOOL_ADMIN':
-            return Response({"error": "Only school admins can verify profiles"}, 
-                          status=status.HTTP_403_FORBIDDEN)
+        """Handle profile verification/rejection"""
+        if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            return Response(
+                {"error": "Only school admin and verified principals can verify profiles"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # For principals, check verification status
+        if (request.user.user_type in ['PRINCIPAL', 'SCHOOL_ADMIN'] and 
+            request.user.profile_verification_status != 'VERIFIED'):
+            return Response(
+                {"error": "Your profile needs to be verified first"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         try:
             user = User.objects.get(id=user_id)
-            school = School.objects.get(user=request.user)
+            school = School.objects.get(user=request.user) if request.user.user_type == 'SCHOOL_ADMIN' \
+                    else request.user.school_staff.school
 
-            # Verify if user belongs to admin's school
+            # Verify if user belongs to admin's/principal's school
             if user.user_type in ['PRINCIPAL', 'INTERNAL_TEACHER', 'STUDENT']:
-                if user.student_profile and user.student_profile.school != school:
-                    return Response({"error": "User does not belong to your school"},
-                                  status=status.HTTP_403_FORBIDDEN)
-                if user.teacher_profile and user.teacher_profile.school != school:
-                    return Response({"error": "User does not belong to your school"},
-                                  status=status.HTTP_403_FORBIDDEN)
+                belongs_to_school = False
+                if hasattr(user, 'student_profile'):
+                    belongs_to_school = user.student_profile.school == school
+                if hasattr(user, 'teacher_profile'):
+                    belongs_to_school = user.teacher_profile.school == school
+                if hasattr(user, 'school_staff'):
+                    belongs_to_school = user.school_staff.school == school
+
+                if not belongs_to_school:
+                    return Response(
+                        {"error": "User does not belong to your school"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
 
             serializer = ProfileVerificationSerializer(user, data=request.data)
             if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
+                user = serializer.save()
+                
+                # Send appropriate response based on verification status
+                message = "Profile verified successfully" if user.profile_verification_status == 'VERIFIED' else "Profile rejected"
+                         
+                return Response({
+                    "message": message,
+                    "status": user.profile_verification_status,
+                    "notes": user.verification_notes
+                })
+
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "User not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class UserDashboardView(APIView):
     permission_classes = [IsAuthenticated]

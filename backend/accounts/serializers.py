@@ -99,6 +99,8 @@ class AlgorithmSettingsSerializer(serializers.Serializer):
 
 
 class ProfileVerificationSerializer(serializers.ModelSerializer):
+    verification_notes = serializers.CharField(required=False, allow_blank=True)
+    
     class Meta:
         model = User
         fields = ['profile_verification_status', 'verification_notes']
@@ -106,7 +108,15 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if not self.instance.profile_completed:
             raise serializers.ValidationError("Cannot verify an incomplete profile")
-        return data    
+            
+        valid_statuses = ['VERIFIED', 'REJECTED', 'PENDING']
+        if data.get('profile_verification_status') not in valid_statuses:
+            raise serializers.ValidationError("Invalid verification status")
+            
+        if data.get('profile_verification_status') == 'REJECTED' and not data.get('verification_notes'):
+            raise serializers.ValidationError("Verification notes are required when rejecting a profile")
+            
+        return data
 
 
 class UserLoginSerializer(TokenObtainPairSerializer):
