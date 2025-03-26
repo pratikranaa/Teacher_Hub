@@ -74,7 +74,6 @@ export default function Hero() {
               fontSize: 'clamp(3rem, 10vw, 3.5rem)',
             }}
           >
-            Our&nbsp;latest&nbsp;
             <Typography
               component="span"
               variant="h1"
@@ -84,9 +83,9 @@ export default function Hero() {
                 ...theme.applyStyles('dark', {
                   color: 'primary.light',
                 }),
-              })}
+              })}products
             >
-              products
+              Teacher Hub
             </Typography>
           </Typography>
           <Typography
@@ -96,9 +95,9 @@ export default function Hero() {
               width: { sm: '100%', md: '80%' },
             }}
           >
-            Explore our cutting-edge dashboard, delivering high-quality solutions
-            tailored to your needs. Elevate your experience with top-tier features
-            and services.
+            Bridging the gap between schools and educators—connect, teach, and inspire.
+              Find the right teachers when you need them, effortlessly!
+
           </Typography>
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
