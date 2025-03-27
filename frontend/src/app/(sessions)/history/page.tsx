@@ -137,7 +137,7 @@ export default function TaskPage() {
                           src="/maxresdefault.jpg" // Replace with your placeholder image path
                           alt="Recording Thumbnail"
                           width={900}
-                          height={600}
+                          height00}
                           className="rounded-md"
                         />
                         <div className="mt-4 flex space-x-4">
