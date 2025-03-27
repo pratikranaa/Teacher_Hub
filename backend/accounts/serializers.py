@@ -53,7 +53,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user.phone_number = validated_data.get('phone_number', '')
         user.user_type = validated_data['user_type']
 
-
         # Set verification status based on user type
         if user.user_type == 'SCHOOL_ADMIN':
             user.profile_verification_status = 'VERIFIED'
@@ -75,6 +74,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError("This school already has an assigned principal.")
                 SchoolStaff.objects.create(user=user, school=school, role='PRINCIPAL')
             elif user.user_type == 'INTERNAL_TEACHER':
+                # Create both TeacherProfile and SchoolStaff entries
                 TeacherProfile.objects.create(user=user, school=school, teacher_type='INTERNAL')
                 SchoolStaff.objects.create(user=user, school=school, role='TEACHER')
             elif user.user_type == 'STUDENT':

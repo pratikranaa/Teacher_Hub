@@ -249,6 +249,18 @@ class VerificationPendingView(APIView):
 class ProfileVerificationView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get_school(self, user):
+        """Helper method to get school for a user"""
+        try:
+            
+            # If user is principal or staff, get through school_staff
+            if hasattr(user, 'school_staff'):
+                return user.school_staff.school
+            
+            return None
+        except (School.DoesNotExist, AttributeError):
+            return None
+
     def get(self, request):
         """Get list of pending profiles for verification"""
         if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
@@ -257,32 +269,25 @@ class ProfileVerificationView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # For principals, ensure they are verified first
-        if (request.user.user_type == 'PRINCIPAL' and 
-            request.user.profile_verification_status != 'VERIFIED'):
-            return Response(
-                {"error": "Your profile needs to be verified first"}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         # Get the school
-        if request.user.user_type == 'SCHOOL_ADMIN':
-            school = School.objects.get(user=request.user)
-        else:
-            school = request.user.school_staff.school
+        school = self.get_school(request.user)
+        if not school:
+            return Response(
+                {"error": "No school associated with your account"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         # Get pending profiles from the school
         pending_profiles = User.objects.filter(
             profile_completed=True,
             profile_verification_status='PENDING'
         ).filter(
-            # Filter users belonging to the school
-            models.Q(student_profile__school=school) |
             models.Q(teacher_profile__school=school) |
+            models.Q(student_profile__school=school) |
             models.Q(school_staff__school=school)
         ).exclude(
             user_type__in=['SCHOOL_ADMIN', 'EXTERNAL_TEACHER']
-        )
+        ).distinct()
 
         serializer = UserProfileSerializer(pending_profiles, many=True)
         return Response(serializer.data)
@@ -305,8 +310,13 @@ class ProfileVerificationView(APIView):
 
         try:
             user = User.objects.get(id=user_id)
-            school = School.objects.get(user=request.user) if request.user.user_type == 'SCHOOL_ADMIN' \
-                    else request.user.school_staff.school
+            school = self.get_school(request.user)
+            
+            if not school:
+                return Response(
+                    {"error": "No school associated with your account"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Verify if user belongs to admin's/principal's school
             if user.user_type in ['PRINCIPAL', 'INTERNAL_TEACHER', 'STUDENT']:
@@ -328,7 +338,6 @@ class ProfileVerificationView(APIView):
             if serializer.is_valid():
                 user = serializer.save()
                 
-                # Send appropriate response based on verification status
                 message = "Profile verified successfully" if user.profile_verification_status == 'VERIFIED' else "Profile rejected"
                          
                 return Response({
