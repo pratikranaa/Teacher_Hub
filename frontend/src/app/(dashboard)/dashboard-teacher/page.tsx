@@ -82,6 +82,11 @@ const sampleData: Request[] = [
     requirements: "Computer lab with latest software development tools"
   },
 ]
+const teacherUserData = {
+  name: "Teacher1",
+  email: "teacher1@example.com",
+  avatar: "/avatars/shadcn.jpg",
+};
 
 export default function Page() {
   return (
@@ -131,7 +136,7 @@ export default function Page() {
           </div>
         </div>
       </SidebarInset>
-      <SidebarRight />
+      <SidebarRight userData={teacherUserData} />
     </SidebarProvider>
   )
 }

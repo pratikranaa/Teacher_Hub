@@ -10,4 +10,5 @@ export function useRequireAuth() {
       router.push('/login');
     }
   }, [router]);
+
 }

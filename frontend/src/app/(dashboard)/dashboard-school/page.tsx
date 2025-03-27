@@ -42,6 +42,12 @@ export default function Page() {
   // State for selected record in Sheet
   const [selectedRecord, setSelectedRecord] = useState(null);
 
+  const adminUserData = {
+    name: "Admin1",
+    email: "admin1@example.com",
+    avatar: "/avatars/admin.jpg",
+  };
+
   return (
     <SidebarProvider>
       <SidebarLeft />
@@ -198,7 +204,7 @@ export default function Page() {
 
         </div>
       </SidebarInset>
-      <SidebarRight />
+      <SidebarRight userData={adminUserData} />
     </SidebarProvider>
   );
 }
