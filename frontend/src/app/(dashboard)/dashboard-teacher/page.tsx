@@ -9,30 +9,39 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
-import { Calendars } from "@/components/calendars"
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Payment, columns } from "./columns"
 import { DataTable } from "./data-table"
-import { AvailabilityForm } from "@/components/auth/LoginForm"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { columns, Request } from "./columns"
+import { AvailabilityForm } from "@/components/dashboard/AvailabilityForm"
+import { CreateRequestForm } from "@/components/dashboard/CreateRequestForm"
 
-async function getData(): Promise<Payment[]> {
-  // Fetch data from your API here.
-  return [
-    {
-      id: "728ed52f",
-      amount: 100,
-      status: "pending",
-      email: "m@example.com",
-    },
-    // ...
-  ]
-}
-
-const data = await getData()
+const sampleData: Request[] = [
+  {
+    id: "REQ001",
+    status: "pending",
+    details: "This is a pending request for class scheduling.",
+  },
+  {
+    id: "REQ002",
+    status: "confirmed",
+    details: "This request has been confirmed for the upcoming session.",
+  },
+  {
+    id: "REQ003",
+    status: "rejected",
+    details: "This request was rejected due to scheduling conflicts.",
+  },
+  {
+    id: "REQ004",
+    status: "pending",
+    details: "This is another pending request for a new class.",
+  },
+]
 
 export default function Page() {
   return (
@@ -47,7 +56,7 @@ export default function Page() {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbPage className="line-clamp-1">
-                    Welcome to Your Dashboard!
+                    Teacher Requests Dashboard
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -55,13 +64,29 @@ export default function Page() {
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="mx-auto h-[100vh] w-full max-w-3xl rounded-xl bg-muted/5 p-4">
-            <DataTable columns={columns} data={data} />
-            <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-              {/* Increased the form size */}
-              <div className="w-full max-w-2xl">
-                <AvailabilityForm />
-              </div>
+          <div className="mx-auto w-full max-w-5xl rounded-xl bg-muted/5 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-2xl font-bold">Teacher Requests</h1>
+              {/* Create Request Button */}
+              <Sheet>
+                <SheetTrigger>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                    Create Request
+                  </button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Create a New Request</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-4">
+                    <CreateRequestForm />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+            <DataTable columns={columns} data={sampleData} />
+            <div className="mt-6">
+              <AvailabilityForm />
             </div>
           </div>
         </div>
