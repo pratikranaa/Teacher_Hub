@@ -366,7 +366,6 @@ class ProfileCompletionSerializer(serializers.ModelSerializer):
             'first_name', 
             'last_name', 
             'phone_number',
-            'address',
             'profile_image',
             'teacher_profile',
             'student_profile',

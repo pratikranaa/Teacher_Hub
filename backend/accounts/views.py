@@ -39,6 +39,7 @@ from rest_framework.response import Response
 from .models import User, TeacherProfile, StudentProfile, School, SchoolStaff
 from django.core.exceptions import ValidationError
 from django.db import models
+import datetime
 
 
 User = get_user_model()
@@ -152,9 +153,280 @@ class ProfileCompletionView(APIView):
             "message": "Please complete your profile",
             "user_type": user.user_type,
             "required_fields": self._get_required_fields(user.user_type),
+            "form_schema": self._get_form_schema(user.user_type),
             "current_data": ProfileCompletionSerializer(user).data
         }
         return Response(profile_data)
+
+    def _get_form_schema(self, user_type):
+        """Generate dynamic form schema based on user type"""
+        base_fields = {
+            "first_name": {
+                "type": "text",
+                "label": "First Name",
+                "required": True,
+                "order": 1
+            },
+            "last_name": {
+                "type": "text", 
+                "label": "Last Name",
+                "required": True,
+                "order": 2
+            },
+            "phone_number": {
+                "type": "text",
+                "label": "Phone Number",
+                "required": True,
+                "order": 3
+            },
+            "profile_image": {
+                "type": "file",
+                "label": "Profile Image",
+                "required": False,
+                "accept": "image/*",
+                "max_size": 204800,  # 200KB
+                "order": 5
+            }
+        }
+        
+        # Teacher specific fields
+        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            teacher_fields = {
+                "teacher_profile.qualification": {
+                    "type": "text",
+                    "label": "Educational Qualification",
+                    "required": True,
+                    "order": 10
+                },
+                "teacher_profile.subjects": {
+                    "type": "multi-text",
+                    "label": "Teaching Subjects",
+                    "required": True, 
+                    "order": 11
+                },
+                "teacher_profile.experience_years": {
+                    "type": "number",
+                    "label": "Years of Experience",
+                    "required": True,
+                    "min": 0,
+                    "order": 12
+                },
+                "teacher_profile.preferred_classes": {
+                    "type": "multi-text",
+                    "label": "Preferred Classes",
+                    "required": False,
+                    "order": 13
+                },
+                "teacher_profile.teaching_methodology": {
+                    "type": "textarea",
+                    "label": "Teaching Methodology",
+                    "required": False,
+                    "order": 14
+                },
+                "teacher_profile.languages": {
+                    "type": "multi-text",
+                    "label": "Languages Known",
+                    "required": False,
+                    "order": 15
+                },
+                "teacher_profile.can_teach_online": {
+                    "type": "checkbox",
+                    "label": "Available for Online Teaching",
+                    "required": False,
+                    "order": 16
+                },
+                "teacher_profile.can_travel": {
+                    "type": "checkbox",
+                    "label": "Available for Travel",
+                    "required": False,
+                    "order": 17
+                }
+            }
+            return {**base_fields, **teacher_fields}
+        
+        # Student specific fields
+        elif user_type == 'STUDENT':
+            student_fields = {
+                "student_profile.grade": {
+                    "type": "text",
+                    "label": "Current Grade",
+                    "required": True,
+                    "order": 10
+                },
+                "student_profile.section": {
+                    "type": "text",
+                    "label": "Section",
+                    "required": False,
+                    "order": 11
+                },
+                "student_profile.roll_number": {
+                    "type": "text",
+                    "label": "Roll Number",
+                    "required": False,
+                    "order": 12
+                },
+                "student_profile.parent_name": {
+                    "type": "text",
+                    "label": "Parent/Guardian Name",
+                    "required": True,
+                    "order": 13
+                },
+                "student_profile.parent_phone": {
+                    "type": "text",
+                    "label": "Parent/Guardian Phone",
+                    "required": True,
+                    "order": 14
+                },
+                "student_profile.parent_email": {
+                    "type": "email",
+                    "label": "Parent/Guardian Email",
+                    "required": False,
+                    "order": 15
+                },
+                "student_profile.date_of_birth": {
+                    "type": "date",
+                    "label": "Date of Birth",
+                    "required": False,
+                    "order": 16
+                }
+            }
+            return {**base_fields, **student_fields}
+        
+        # School admin/principal specific fields
+        elif user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            # Staff fields
+            staff_fields = {
+                "school_staff_profile.department": {
+                    "type": "text",
+                    "label": "Department",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 10
+                },
+                "school_staff_profile.employee_id": {
+                    "type": "text",
+                    "label": "Employee ID",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 11
+                },
+                "school_staff_profile.date_of_joining": {
+                    "type": "date",
+                    "label": "Date of Joining",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 12
+                }
+            }
+            
+            # School fields
+            school_fields = {
+                "school_profile.school_name": {
+                    "type": "text",
+                    "label": "School Name",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 20
+                },
+                "school_profile.category": {
+                    "type": "select",
+                    "label": "School Category",
+                    "required": True,
+                    "options": [
+                        {"value": "PRIMARY", "label": "Primary School"},
+                        {"value": "MIDDLE", "label": "Middle School"},
+                        {"value": "SECONDARY", "label": "Secondary School"},
+                        {"value": "HIGHER_SECONDARY", "label": "Higher Secondary School"},
+                        {"value": "DEGREE_COLLEGE", "label": "Degree College"},
+                        {"value": "UNIVERSITY", "label": "University"},
+                        {"value": "OTHER", "label": "Other"}
+                    ],
+                    "section": "School Details",
+                    "order": 21
+                },
+                "school_profile.address": {
+                    "type": "textarea",
+                    "label": "School Address",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 22
+                },
+                "school_profile.city": {
+                    "type": "text",
+                    "label": "City",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 23
+                },
+                "school_profile.state": {
+                    "type": "text",
+                    "label": "State",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 24
+                },
+                "school_profile.country": {
+                    "type": "text",
+                    "label": "Country",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 25
+                },
+                "school_profile.postal_code": {
+                    "type": "text",
+                    "label": "Postal Code",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 26
+                },
+                "school_profile.board_type": {
+                    "type": "select",
+                    "label": "Board Type",
+                    "required": True,
+                    "options": [
+                        {"value": "CBSE", "label": "CBSE"},
+                        {"value": "ICSE", "label": "ICSE"},
+                        {"value": "IB", "label": "IB"},
+                        {"value": "STATE", "label": "State Board"},
+                        {"value": "OTHER", "label": "Other Board"}
+                    ],
+                    "section": "School Details",
+                    "order": 27
+                },
+                "school_profile.registration_number": {
+                    "type": "text",
+                    "label": "Registration Number",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 28
+                },
+                "school_profile.established_year": {
+                    "type": "number",
+                    "label": "Established Year",
+                    "required": True,
+                    "min": 1800,
+                    "max": datetime.datetime.now().year,
+                    "section": "School Details",
+                    "order": 29
+                },
+                "school_profile.website": {
+                    "type": "url",
+                    "label": "Website",
+                    "required": False,
+                    "section": "School Details",
+                    "order": 30
+                },
+                "school_profile.contact_person": {
+                    "type": "text",
+                    "label": "Contact Person",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 31
+                }
+            }
+            return {**base_fields, **staff_fields, **school_fields}
+            
+        return base_fields
 
     def post(self, request):
         """Handle profile completion submission"""
@@ -180,7 +452,6 @@ class ProfileCompletionView(APIView):
             "first_name": "First Name",
             "last_name": "Last Name",
             "phone_number": "Phone Number",
-            "address": "Address",
         }
 
         if user_type == 'INTERNAL_TEACHER':
