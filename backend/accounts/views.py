@@ -181,10 +181,9 @@ class ProfileCompletionView(APIView):
             "last_name": "Last Name",
             "phone_number": "Phone Number",
             "address": "Address",
-            "profile_image": "Profile Image (optional)"
         }
 
-        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+        if user_type == 'INTERNAL_TEACHER':
             return {
                 **base_fields,
                 "teacher_profile": {
@@ -192,11 +191,22 @@ class ProfileCompletionView(APIView):
                     "subjects": "Teaching Subjects",
                     "experience_years": "Years of Experience",
                     "preferred_classes": "Preferred Classes",
-                    "teaching_methodology": "Teaching Methodology",
                     "languages": "Languages Known",
                     "can_teach_online": "Available for Online Teaching",
-                    "can_travel": "Available for Travel"
+                    "can_travel": "Available for Travel",
+                    "school_name": "School", # For internal teachers
                 }
+            }
+        elif user_type == 'EXTERNAL_TEACHER':
+            return {
+                **base_fields,
+                    "qualification": "Educational Qualification",
+                    "subjects": "Teaching Subjects",
+                    "experience_years": "Years of Experience",
+                    "preferred_classes": "Preferred Classes",
+                    "languages": "Languages Known",
+                    "can_teach_online": "Available for Online Teaching",
+                    "can_travel": "Available for Travel",
             }
         elif user_type == 'STUDENT':
             return {
@@ -215,11 +225,15 @@ class ProfileCompletionView(APIView):
             return {
                 **base_fields,
                 "school_staff_profile": {
-                    "department": "Department",
                     "employee_id": "Employee ID",
-                    "joining_date": "Date of Joining"
-                }
-            }
+                    "designation": "Designation",
+                },
+                "school_profile": {
+                    "school_name": "School Name",
+                    "category": "School Category",
+                    "board_type": "Board Type",       
+            }        
+            } 
         return base_fields
 
 class VerificationPendingView(APIView):
@@ -573,3 +587,4 @@ class SchoolProfileDetailView(generics.RetrieveAPIView):
     serializer_class = SchoolProfileSerializer
     queryset = School.objects.all()
     permission_classes = [permissions.IsAuthenticated]
+    
