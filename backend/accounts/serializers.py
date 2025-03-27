@@ -99,7 +99,6 @@ class AlgorithmSettingsSerializer(serializers.Serializer):
 
 
 class ProfileVerificationSerializer(serializers.ModelSerializer):
-    verification_notes = serializers.CharField(required=False, allow_blank=True)
     
     class Meta:
         model = User
@@ -107,16 +106,20 @@ class ProfileVerificationSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if not self.instance.profile_completed:
-            raise serializers.ValidationError("Cannot verify an incomplete profile")
-            
-        valid_statuses = ['VERIFIED', 'REJECTED', 'PENDING']
-        if data.get('profile_verification_status') not in valid_statuses:
-            raise serializers.ValidationError("Invalid verification status")
-            
+            raise serializers.ValidationError({"error": "Cannot verify an incomplete profile"})
+                    
         if data.get('profile_verification_status') == 'REJECTED' and not data.get('verification_notes'):
-            raise serializers.ValidationError("Verification notes are required when rejecting a profile")
+            raise serializers.ValidationError({
+                "verification_notes": "Verification notes are required when rejecting a profile"
+            })
             
         return data
+
+    def update(self, instance, validated_data):
+        instance.profile_verification_status = validated_data['profile_verification_status']
+        instance.verification_notes = validated_data.get('verification_notes', '')
+        instance.save()
+        return instance
 
 
 class UserLoginSerializer(TokenObtainPairSerializer):
@@ -252,7 +255,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'user_type', 'phone_number', 'profile_image', 
             'created_at', 'updated_at', 'teacher_profile', 'student_profile', 
-            'school_staff_profile', 'school_profile'
+            'school_staff_profile', 'school_profile', 'profile_completed', 'profile_verification_status'
         ]
 
     def to_representation(self, instance):

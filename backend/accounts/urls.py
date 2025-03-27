@@ -28,7 +28,7 @@ urlpatterns = [
     path('profile/completion/', views.ProfileCompletionView.as_view(), name='profile-completion'),
     path('profile/verification-pending/', views.VerificationPendingView.as_view(), name='verification-pending'),
     path('profiles/pending-verification/', views.ProfileVerificationView.as_view(), name='pending-verifications'),
-    path('profile/verify/<uuid:user_id>/', views.ProfileVerificationView.as_view(), name='profile-verify'),
+    path('profile/verify/<str:username>/', views.ProfileVerificationView.as_view(), name='profile-verify'),
     
     # Teacher-specific URLs
     path('profile/update-availability/', views.UpdateAvailabilityView.as_view(), name='update-teacher-availability'),

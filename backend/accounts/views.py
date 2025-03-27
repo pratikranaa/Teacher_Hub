@@ -292,24 +292,25 @@ class ProfileVerificationView(APIView):
         serializer = UserProfileSerializer(pending_profiles, many=True)
         return Response(serializer.data)
 
-    def post(self, request, user_id):
-        """Handle profile verification/rejection"""
+    def post(self, request, username):
+        """Handle profile verification"""
+        # Check if user is authorized to verify profiles
         if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
             return Response(
-                {"error": "Only school admin and verified principals can verify profiles"}, 
+                {"error": "Only school admin and principals can verify profiles"}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # For principals, check verification status
-        if (request.user.user_type in ['PRINCIPAL', 'SCHOOL_ADMIN'] and 
-            request.user.profile_verification_status != 'VERIFIED'):
+        # For principals, check their own verification status
+        if request.user.user_type == 'PRINCIPAL' and request.user.profile_verification_status != 'VERIFIED':
             return Response(
                 {"error": "Your profile needs to be verified first"}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
         try:
-            user = User.objects.get(id=user_id)
+            # Get the user to be verified
+            user_to_verify = User.objects.get(username=username)
             school = self.get_school(request.user)
             
             if not school:
@@ -319,34 +320,30 @@ class ProfileVerificationView(APIView):
                 )
 
             # Verify if user belongs to admin's/principal's school
-            if user.user_type in ['PRINCIPAL', 'INTERNAL_TEACHER', 'STUDENT']:
-                belongs_to_school = False
-                if hasattr(user, 'student_profile'):
-                    belongs_to_school = user.student_profile.school == school
-                if hasattr(user, 'teacher_profile'):
-                    belongs_to_school = user.teacher_profile.school == school
-                if hasattr(user, 'school_staff'):
-                    belongs_to_school = user.school_staff.school == school
+            belongs_to_school = False
+            if hasattr(user_to_verify, 'student_profile'):
+                belongs_to_school = user_to_verify.student_profile.school == school
+            elif hasattr(user_to_verify, 'teacher_profile'):
+                belongs_to_school = user_to_verify.teacher_profile.school == school
+            elif hasattr(user_to_verify, 'school_staff'):
+                belongs_to_school = user_to_verify.school_staff.school == school
 
-                if not belongs_to_school:
-                    return Response(
-                        {"error": "User does not belong to your school"},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+            if not belongs_to_school and user_to_verify.user_type != 'EXTERNAL_TEACHER':
+                return Response(
+                    {"error": "User does not belong to your school"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-            serializer = ProfileVerificationSerializer(user, data=request.data)
-            if serializer.is_valid():
-                user = serializer.save()
-                
-                message = "Profile verified successfully" if user.profile_verification_status == 'VERIFIED' else "Profile rejected"
-                         
-                return Response({
-                    "message": message,
-                    "status": user.profile_verification_status,
-                    "notes": user.verification_notes
-                })
+            # Update verification status
+            user_to_verify.profile_verification_status = 'VERIFIED'
+            user_to_verify.verification_notes = request.data.get('notes', '')
+            user_to_verify.save()
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "message": "Profile verified successfully",
+                "status": user_to_verify.profile_verification_status,
+                "notes": user_to_verify.verification_notes
+            })
 
         except User.DoesNotExist:
             return Response(
@@ -596,4 +593,4 @@ class SchoolProfileDetailView(generics.RetrieveAPIView):
     serializer_class = SchoolProfileSerializer
     queryset = School.objects.all()
     permission_classes = [permissions.IsAuthenticated]
-    
+
