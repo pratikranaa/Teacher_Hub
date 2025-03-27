@@ -205,11 +205,19 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+    
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone_number']
+
 
 class TeacherProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
     class Meta:
         model = TeacherProfile
-        exclude = ['user']
+        fields = '__all__'
+        #exclude = ['user']
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user

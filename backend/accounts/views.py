@@ -91,15 +91,28 @@ class TeacherProfileViewSet(viewsets.ModelViewSet):
     serializer_class = TeacherProfileSerializer
     permission_classes = [IsAuthenticated]
 
+
+    def get_school(self, user):
+        """Helper method to get school for a user"""
+        try:
+            # If user is principal or staff, get through school_staff
+            if hasattr(user, 'school_staff'):
+                return user.school_staff.school
+            
+            return None
+        except (School.DoesNotExist, AttributeError):
+            return None
+
+    
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
             return TeacherProfile.objects.none()
         if user.user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
-            return TeacherProfile.objects.filter(user=user)
+            return TeacherProfile.objects.filter(user=user).select_related('user')
         elif user.user_type == 'SCHOOL_ADMIN':
-            school = School.objects.get(user=user)
-            return TeacherProfile.objects.filter(school=school)
+            school = self.get_school(user)
+            return TeacherProfile.objects.filter(school=school).select_related('user')
         return TeacherProfile.objects.none()
 
 
@@ -121,6 +134,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
 class SchoolProfileViewSet(viewsets.ModelViewSet):
     serializer_class = SchoolProfileSerializer
     permission_classes = [IsAuthenticated]
+
 
     def get_queryset(self):
         user = self.request.user
