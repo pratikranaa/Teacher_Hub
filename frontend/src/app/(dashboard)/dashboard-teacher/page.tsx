@@ -25,21 +25,61 @@ const sampleData: Request[] = [
     id: "REQ001",
     status: "pending",
     details: "This is a pending request for class scheduling.",
+    assignedTeacher: "John Smith",
+    subject: "Mathematics",
+    grade: "10",
+    section: "A",
+    startTime: "09:00 AM",
+    endTime: "10:30 AM",
+    priority: "high",
+    mode: "online",
+    description: "Need a specialized math class for advanced students",
+    requirements: "Require additional resources for advanced mathematics"
   },
   {
     id: "REQ002",
     status: "confirmed",
     details: "This request has been confirmed for the upcoming session.",
+    assignedTeacher: "Emily Davis",
+    subject: "Science",
+    grade: "8",
+    section: "B",
+    startTime: "11:00 AM",
+    endTime: "12:30 PM",
+    priority: "medium",
+    mode: "offline",
+    description: "Regular science class with lab session",
+    requirements: "Lab equipment needed for practical experiments"
   },
   {
     id: "REQ003",
     status: "rejected",
     details: "This request was rejected due to scheduling conflicts.",
+    assignedTeacher: "Michael Johnson",
+    subject: "Literature",
+    grade: "11",
+    section: "C",
+    startTime: "02:00 PM",
+    endTime: "03:30 PM",
+    priority: "low",
+    mode: "online",
+    description: "Additional literature study session",
+    requirements: "Access to digital library resources"
   },
   {
     id: "REQ004",
     status: "pending",
     details: "This is another pending request for a new class.",
+    assignedTeacher: "Sarah Williams",
+    subject: "Computer Science",
+    grade: "12",
+    section: "A",
+    startTime: "10:00 AM",
+    endTime: "11:30 AM",
+    priority: "high",
+    mode: "offline",
+    description: "Advanced programming workshop",
+    requirements: "Computer lab with latest software development tools"
   },
 ]
 
@@ -55,8 +95,8 @@ export default function Page() {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
-                  <BreadcrumbPage className="line-clamp-1">
-                    Teacher Requests Dashboard
+                  <BreadcrumbPage className="line-clamp-1 text-3xl font-bold">
+                    Teacher Dashboard
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -66,7 +106,7 @@ export default function Page() {
         <div className="flex flex-1 flex-col gap-4 p-4">
           <div className="mx-auto w-full max-w-5xl rounded-xl bg-muted/5 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold">Teacher Requests</h1>
+              <h1 className="text-2xl font-bold">Request History</h1>
               {/* Create Request Button */}
               <Sheet>
                 <SheetTrigger>
