@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/sidebar"
 
 // This is sample data.
-const data = {
+const defaultData = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "Shadcn",
+    email: "m1@example.com",
     avatar: "/avatars/shadcn.jpg",
   },
   calendars: [
@@ -39,9 +39,16 @@ const data = {
   ],
 }
 
+
 export function SidebarRight({
+  userData,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
+}: React.ComponentProps<typeof Sidebar> & {
+  userData?: typeof defaultData.user
+}) {
+  // Use provided userData or fall back to default
+  const user = userData || defaultData.user;
+  
   return (
     <Sidebar
       collapsible="none"
@@ -49,12 +56,12 @@ export function SidebarRight({
       {...props}
     >
       <SidebarHeader className="h-16 border-b border-sidebar-border">
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarHeader>
       <SidebarContent>
         <DatePicker />
         <SidebarSeparator className="mx-0" />
-        <Calendars calendars={data.calendars} />
+        <Calendars calendars={defaultData.calendars} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
