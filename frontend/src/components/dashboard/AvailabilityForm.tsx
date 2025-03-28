@@ -19,6 +19,7 @@ export function AvailabilityForm({
     date: "",
     start_time: "",
     end_time: "",
+    subjects: "",
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
@@ -39,6 +40,22 @@ export function AvailabilityForm({
       return
     }
 
+    // Convert subjects to an object: "Math, Science" → { "Math": "Math", "Science": "Science" }
+    const formattedSubjects = formData.subjects
+      .split(",")
+      .map((subject) => subject.trim())
+      .reduce((acc, subject) => {
+        if (subject) acc[subject] = subject
+        return acc
+      }, {} as Record<string, string>)
+
+    const payload = {
+      date: formData.date,
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+      preferred_subjects: formattedSubjects, // Correct API format
+    }
+
     try {
       const response = await fetch("http://127.0.0.1:8000/api/teacher-availability/", {
         method: "POST",
@@ -46,12 +63,12 @@ export function AvailabilityForm({
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
         setMessage("Availability updated successfully.")
-        setFormData({ date: "", start_time: "", end_time: "" })
+        setFormData({ date: "", start_time: "", end_time: "", subjects: "" })
       } else {
         const errorData = await response.json()
         setMessage(`Error: ${errorData.detail || "Failed to update availability"}`)
@@ -86,6 +103,18 @@ export function AvailabilityForm({
                 <Label htmlFor="end_time">End Time</Label>
                 <Input id="end_time" name="end_time" type="time" value={formData.end_time} onChange={handleChange} required />
               </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <Label htmlFor="subjects">Subjects (Comma-separated)</Label>
+              <Input 
+                id="subjects" 
+                name="subjects" 
+                type="text" 
+                placeholder="Enter subjects (e.g., Math, Science)" 
+                value={formData.subjects} 
+                onChange={handleChange} 
+                required 
+              />
             </div>
             <Button type="submit" className="mt-6 w-full" disabled={loading}>
               {loading ? "Submitting..." : "Submit Availability"}
