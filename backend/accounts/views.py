@@ -39,6 +39,7 @@ from rest_framework.response import Response
 from .models import User, TeacherProfile, StudentProfile, School, SchoolStaff
 from django.core.exceptions import ValidationError
 from django.db import models
+import datetime
 
 
 User = get_user_model()
@@ -91,15 +92,28 @@ class TeacherProfileViewSet(viewsets.ModelViewSet):
     serializer_class = TeacherProfileSerializer
     permission_classes = [IsAuthenticated]
 
+
+    def get_school(self, user):
+        """Helper method to get school for a user"""
+        try:
+            # If user is principal or staff, get through school_staff
+            if hasattr(user, 'school_staff'):
+                return user.school_staff.school
+            
+            return None
+        except (School.DoesNotExist, AttributeError):
+            return None
+
+    
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
             return TeacherProfile.objects.none()
         if user.user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
-            return TeacherProfile.objects.filter(user=user)
+            return TeacherProfile.objects.filter(user=user).select_related('user')
         elif user.user_type == 'SCHOOL_ADMIN':
-            school = School.objects.get(user=user)
-            return TeacherProfile.objects.filter(school=school)
+            school = self.get_school(user)
+            return TeacherProfile.objects.filter(school=school).select_related('user')
         return TeacherProfile.objects.none()
 
 
@@ -121,6 +135,7 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
 class SchoolProfileViewSet(viewsets.ModelViewSet):
     serializer_class = SchoolProfileSerializer
     permission_classes = [IsAuthenticated]
+
 
     def get_queryset(self):
         user = self.request.user
@@ -152,9 +167,280 @@ class ProfileCompletionView(APIView):
             "message": "Please complete your profile",
             "user_type": user.user_type,
             "required_fields": self._get_required_fields(user.user_type),
+            "form_schema": self._get_form_schema(user.user_type),
             "current_data": ProfileCompletionSerializer(user).data
         }
         return Response(profile_data)
+
+    def _get_form_schema(self, user_type):
+        """Generate dynamic form schema based on user type"""
+        base_fields = {
+            "first_name": {
+                "type": "text",
+                "label": "First Name",
+                "required": True,
+                "order": 1
+            },
+            "last_name": {
+                "type": "text", 
+                "label": "Last Name",
+                "required": True,
+                "order": 2
+            },
+            "phone_number": {
+                "type": "text",
+                "label": "Phone Number",
+                "required": True,
+                "order": 3
+            },
+            "profile_image": {
+                "type": "file",
+                "label": "Profile Image",
+                "required": False,
+                "accept": "image/*",
+                "max_size": 204800,  # 200KB
+                "order": 5
+            }
+        }
+        
+        # Teacher specific fields
+        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+            teacher_fields = {
+                "teacher_profile.qualification": {
+                    "type": "text",
+                    "label": "Educational Qualification",
+                    "required": True,
+                    "order": 10
+                },
+                "teacher_profile.subjects": {
+                    "type": "multi-text",
+                    "label": "Teaching Subjects",
+                    "required": True, 
+                    "order": 11
+                },
+                "teacher_profile.experience_years": {
+                    "type": "number",
+                    "label": "Years of Experience",
+                    "required": True,
+                    "min": 0,
+                    "order": 12
+                },
+                "teacher_profile.preferred_classes": {
+                    "type": "multi-text",
+                    "label": "Preferred Classes",
+                    "required": False,
+                    "order": 13
+                },
+                "teacher_profile.teaching_methodology": {
+                    "type": "textarea",
+                    "label": "Teaching Methodology",
+                    "required": False,
+                    "order": 14
+                },
+                "teacher_profile.languages": {
+                    "type": "multi-text",
+                    "label": "Languages Known",
+                    "required": False,
+                    "order": 15
+                },
+                "teacher_profile.can_teach_online": {
+                    "type": "checkbox",
+                    "label": "Available for Online Teaching",
+                    "required": False,
+                    "order": 16
+                },
+                "teacher_profile.can_travel": {
+                    "type": "checkbox",
+                    "label": "Available for Travel",
+                    "required": False,
+                    "order": 17
+                }
+            }
+            return {**base_fields, **teacher_fields}
+        
+        # Student specific fields
+        elif user_type == 'STUDENT':
+            student_fields = {
+                "student_profile.grade": {
+                    "type": "text",
+                    "label": "Current Grade",
+                    "required": True,
+                    "order": 10
+                },
+                "student_profile.section": {
+                    "type": "text",
+                    "label": "Section",
+                    "required": False,
+                    "order": 11
+                },
+                "student_profile.roll_number": {
+                    "type": "text",
+                    "label": "Roll Number",
+                    "required": False,
+                    "order": 12
+                },
+                "student_profile.parent_name": {
+                    "type": "text",
+                    "label": "Parent/Guardian Name",
+                    "required": True,
+                    "order": 13
+                },
+                "student_profile.parent_phone": {
+                    "type": "text",
+                    "label": "Parent/Guardian Phone",
+                    "required": True,
+                    "order": 14
+                },
+                "student_profile.parent_email": {
+                    "type": "email",
+                    "label": "Parent/Guardian Email",
+                    "required": False,
+                    "order": 15
+                },
+                "student_profile.date_of_birth": {
+                    "type": "date",
+                    "label": "Date of Birth",
+                    "required": False,
+                    "order": 16
+                }
+            }
+            return {**base_fields, **student_fields}
+        
+        # School admin/principal specific fields
+        elif user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            # Staff fields
+            staff_fields = {
+                "school_staff_profile.department": {
+                    "type": "text",
+                    "label": "Department",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 10
+                },
+                "school_staff_profile.employee_id": {
+                    "type": "text",
+                    "label": "Employee ID",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 11
+                },
+                "school_staff_profile.date_of_joining": {
+                    "type": "date",
+                    "label": "Date of Joining",
+                    "required": True,
+                    "section": "Staff Details",
+                    "order": 12
+                }
+            }
+            
+            # School fields
+            school_fields = {
+                "school_profile.school_name": {
+                    "type": "text",
+                    "label": "School Name",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 20
+                },
+                "school_profile.category": {
+                    "type": "select",
+                    "label": "School Category",
+                    "required": True,
+                    "options": [
+                        {"value": "PRIMARY", "label": "Primary School"},
+                        {"value": "MIDDLE", "label": "Middle School"},
+                        {"value": "SECONDARY", "label": "Secondary School"},
+                        {"value": "HIGHER_SECONDARY", "label": "Higher Secondary School"},
+                        {"value": "DEGREE_COLLEGE", "label": "Degree College"},
+                        {"value": "UNIVERSITY", "label": "University"},
+                        {"value": "OTHER", "label": "Other"}
+                    ],
+                    "section": "School Details",
+                    "order": 21
+                },
+                "school_profile.address": {
+                    "type": "textarea",
+                    "label": "School Address",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 22
+                },
+                "school_profile.city": {
+                    "type": "text",
+                    "label": "City",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 23
+                },
+                "school_profile.state": {
+                    "type": "text",
+                    "label": "State",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 24
+                },
+                "school_profile.country": {
+                    "type": "text",
+                    "label": "Country",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 25
+                },
+                "school_profile.postal_code": {
+                    "type": "text",
+                    "label": "Postal Code",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 26
+                },
+                "school_profile.board_type": {
+                    "type": "select",
+                    "label": "Board Type",
+                    "required": True,
+                    "options": [
+                        {"value": "CBSE", "label": "CBSE"},
+                        {"value": "ICSE", "label": "ICSE"},
+                        {"value": "IB", "label": "IB"},
+                        {"value": "STATE", "label": "State Board"},
+                        {"value": "OTHER", "label": "Other Board"}
+                    ],
+                    "section": "School Details",
+                    "order": 27
+                },
+                "school_profile.registration_number": {
+                    "type": "text",
+                    "label": "Registration Number",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 28
+                },
+                "school_profile.established_year": {
+                    "type": "number",
+                    "label": "Established Year",
+                    "required": True,
+                    "min": 1800,
+                    "max": datetime.datetime.now().year,
+                    "section": "School Details",
+                    "order": 29
+                },
+                "school_profile.website": {
+                    "type": "url",
+                    "label": "Website",
+                    "required": False,
+                    "section": "School Details",
+                    "order": 30
+                },
+                "school_profile.contact_person": {
+                    "type": "text",
+                    "label": "Contact Person",
+                    "required": True,
+                    "section": "School Details",
+                    "order": 31
+                }
+            }
+            return {**base_fields, **staff_fields, **school_fields}
+            
+        return base_fields
 
     def post(self, request):
         """Handle profile completion submission"""
@@ -180,11 +466,9 @@ class ProfileCompletionView(APIView):
             "first_name": "First Name",
             "last_name": "Last Name",
             "phone_number": "Phone Number",
-            "address": "Address",
-            "profile_image": "Profile Image (optional)"
         }
 
-        if user_type in ['INTERNAL_TEACHER', 'EXTERNAL_TEACHER']:
+        if user_type == 'INTERNAL_TEACHER':
             return {
                 **base_fields,
                 "teacher_profile": {
@@ -192,11 +476,22 @@ class ProfileCompletionView(APIView):
                     "subjects": "Teaching Subjects",
                     "experience_years": "Years of Experience",
                     "preferred_classes": "Preferred Classes",
-                    "teaching_methodology": "Teaching Methodology",
                     "languages": "Languages Known",
                     "can_teach_online": "Available for Online Teaching",
-                    "can_travel": "Available for Travel"
+                    "can_travel": "Available for Travel",
+                    "school_name": "School", # For internal teachers
                 }
+            }
+        elif user_type == 'EXTERNAL_TEACHER':
+            return {
+                **base_fields,
+                    "qualification": "Educational Qualification",
+                    "subjects": "Teaching Subjects",
+                    "experience_years": "Years of Experience",
+                    "preferred_classes": "Preferred Classes",
+                    "languages": "Languages Known",
+                    "can_teach_online": "Available for Online Teaching",
+                    "can_travel": "Available for Travel",
             }
         elif user_type == 'STUDENT':
             return {
@@ -215,11 +510,15 @@ class ProfileCompletionView(APIView):
             return {
                 **base_fields,
                 "school_staff_profile": {
-                    "department": "Department",
                     "employee_id": "Employee ID",
-                    "joining_date": "Date of Joining"
-                }
-            }
+                    "designation": "Designation",
+                },
+                "school_profile": {
+                    "school_name": "School Name",
+                    "category": "School Category",
+                    "board_type": "Board Type",       
+            }        
+            } 
         return base_fields
 
 class VerificationPendingView(APIView):
@@ -235,6 +534,18 @@ class VerificationPendingView(APIView):
 class ProfileVerificationView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get_school(self, user):
+        """Helper method to get school for a user"""
+        try:
+            
+            # If user is principal or staff, get through school_staff
+            if hasattr(user, 'school_staff'):
+                return user.school_staff.school
+            
+            return None
+        except (School.DoesNotExist, AttributeError):
+            return None
+
     def get(self, request):
         """Get list of pending profiles for verification"""
         if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
@@ -243,87 +554,81 @@ class ProfileVerificationView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # For principals, ensure they are verified first
-        if (request.user.user_type == 'PRINCIPAL' and 
-            request.user.profile_verification_status != 'VERIFIED'):
-            return Response(
-                {"error": "Your profile needs to be verified first"}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         # Get the school
-        if request.user.user_type == 'SCHOOL_ADMIN':
-            school = School.objects.get(user=request.user)
-        else:
-            school = request.user.school_staff.school
+        school = self.get_school(request.user)
+        if not school:
+            return Response(
+                {"error": "No school associated with your account"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         # Get pending profiles from the school
         pending_profiles = User.objects.filter(
             profile_completed=True,
             profile_verification_status='PENDING'
         ).filter(
-            # Filter users belonging to the school
-            models.Q(student_profile__school=school) |
             models.Q(teacher_profile__school=school) |
+            models.Q(student_profile__school=school) |
             models.Q(school_staff__school=school)
         ).exclude(
             user_type__in=['SCHOOL_ADMIN', 'EXTERNAL_TEACHER']
-        )
+        ).distinct()
 
         serializer = UserProfileSerializer(pending_profiles, many=True)
         return Response(serializer.data)
 
-    def post(self, request, user_id):
-        """Handle profile verification/rejection"""
+    def post(self, request, username):
+        """Handle profile verification"""
+        # Check if user is authorized to verify profiles
         if request.user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
             return Response(
-                {"error": "Only school admin and verified principals can verify profiles"}, 
+                {"error": "Only school admin and principals can verify profiles"}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # For principals, check verification status
-        if (request.user.user_type in ['PRINCIPAL', 'SCHOOL_ADMIN'] and 
-            request.user.profile_verification_status != 'VERIFIED'):
+        # For principals, check their own verification status
+        if request.user.user_type == 'PRINCIPAL' and request.user.profile_verification_status != 'VERIFIED':
             return Response(
                 {"error": "Your profile needs to be verified first"}, 
                 status=status.HTTP_403_FORBIDDEN
             )
 
         try:
-            user = User.objects.get(id=user_id)
-            school = School.objects.get(user=request.user) if request.user.user_type == 'SCHOOL_ADMIN' \
-                    else request.user.school_staff.school
+            # Get the user to be verified
+            user_to_verify = User.objects.get(username=username)
+            school = self.get_school(request.user)
+            
+            if not school:
+                return Response(
+                    {"error": "No school associated with your account"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Verify if user belongs to admin's/principal's school
-            if user.user_type in ['PRINCIPAL', 'INTERNAL_TEACHER', 'STUDENT']:
-                belongs_to_school = False
-                if hasattr(user, 'student_profile'):
-                    belongs_to_school = user.student_profile.school == school
-                if hasattr(user, 'teacher_profile'):
-                    belongs_to_school = user.teacher_profile.school == school
-                if hasattr(user, 'school_staff'):
-                    belongs_to_school = user.school_staff.school == school
+            belongs_to_school = False
+            if hasattr(user_to_verify, 'student_profile'):
+                belongs_to_school = user_to_verify.student_profile.school == school
+            elif hasattr(user_to_verify, 'teacher_profile'):
+                belongs_to_school = user_to_verify.teacher_profile.school == school
+            elif hasattr(user_to_verify, 'school_staff'):
+                belongs_to_school = user_to_verify.school_staff.school == school
 
-                if not belongs_to_school:
-                    return Response(
-                        {"error": "User does not belong to your school"},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+            if not belongs_to_school and user_to_verify.user_type != 'EXTERNAL_TEACHER':
+                return Response(
+                    {"error": "User does not belong to your school"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-            serializer = ProfileVerificationSerializer(user, data=request.data)
-            if serializer.is_valid():
-                user = serializer.save()
-                
-                # Send appropriate response based on verification status
-                message = "Profile verified successfully" if user.profile_verification_status == 'VERIFIED' else "Profile rejected"
-                         
-                return Response({
-                    "message": message,
-                    "status": user.profile_verification_status,
-                    "notes": user.verification_notes
-                })
+            # Update verification status
+            user_to_verify.profile_verification_status = 'VERIFIED'
+            user_to_verify.verification_notes = request.data.get('notes', '')
+            user_to_verify.save()
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "message": "Profile verified successfully",
+                "status": user_to_verify.profile_verification_status,
+                "notes": user_to_verify.verification_notes
+            })
 
         except User.DoesNotExist:
             return Response(
@@ -573,3 +878,4 @@ class SchoolProfileDetailView(generics.RetrieveAPIView):
     serializer_class = SchoolProfileSerializer
     queryset = School.objects.all()
     permission_classes = [permissions.IsAuthenticated]
+

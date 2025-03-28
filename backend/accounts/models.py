@@ -318,6 +318,16 @@ class SchoolStaff(models.Model):
     joining_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['school', 'role']),
+            models.Index(fields=['user']),
+        ]
+        unique_together = ['user', 'school']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role} at {self.school.school_name}"
     
 
 class TeacherAvailability(models.Model):

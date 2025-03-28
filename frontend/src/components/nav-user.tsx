@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 
 import {
   BadgeCheck,
@@ -40,7 +41,26 @@ export function NavUser({
     avatar: string
   }
 }) {
+
   const { isMobile } = useSidebar()
+
+  const router = useRouter()
+  
+  const handleLogout = () => {
+    // Clear localStorage items
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    // Add any other localStorage items that need to be cleared
+    
+    // Clear cookies (for client-side cookies)
+    document.cookie.split(";").forEach(cookie => {
+      const [name] = cookie.trim().split("=")
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+    })
+    
+    // Redirect to login page
+    router.push("/login")
+  }
 
   return (
     <SidebarMenu>
@@ -103,7 +123,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Log out
             </DropdownMenuItem>
