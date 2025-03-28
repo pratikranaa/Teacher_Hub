@@ -77,7 +77,17 @@ export function LoginForm({
         });
         router.push('/verification-rejected');
       } else if (data.profile_verification_status === 'VERIFIED') {
-        router.push('/dashboard');
+        if (data.user_type === 'SCHOOL_ADMIN' || data.user_type === 'PRINCIPAL') {
+          router.push('/dashboard-school');
+        }
+        if (data.user_type === 'INTERNAL_TEACHER' || data.user_type === 'EXTERNAL_TEACHER') {
+          router.push('/dashboard-teacher');
+        }
+        if (data.user_type === 'STUDENT') {
+          router.push('/dashboard-student');
+        }
+      } else {
+        router.push('/');
       }
 
     } catch (error) {

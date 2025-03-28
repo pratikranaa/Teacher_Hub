@@ -26,7 +26,7 @@ urlpatterns = [
     path('profile/image/', views.UploadProfileImageView.as_view(), name='profile-image-upload'),
     path('profile/verification-pending/', views.VerificationPendingView.as_view(), name='verification-pending'),
     path('profiles/pending-verification/', views.ProfileVerificationView.as_view(), name='pending-verifications'),
-    path('profile/verify/<uuid:user_id>/', views.ProfileVerificationView.as_view(), name='profile-verify'),
+    path('profile/verify/<str:username>/', views.ProfileVerificationView.as_view(), name='profile-verify'),
     
     path('profile/', views.user_profile, name='user-profile'),
     path('profile/<str:username>/', views.FetchUserProfileView.as_view(), name='fetch-user-profile'),
