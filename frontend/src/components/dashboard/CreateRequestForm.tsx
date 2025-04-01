@@ -1,8 +1,14 @@
+import { useState, useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 import { 
   Select, 
   SelectContent, 
@@ -10,161 +16,450 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import { 
+  Form, 
+  FormControl, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage 
+} from "@/components/ui/form"
+
+const BASE_API_URL = "http://127.0.0.1:8000"
+
+// Form schema validation
+const formSchema = z.object({
+  subject: z.string().min(1, "Subject is required"),
+  grade: z.string().min(1, "Grade is required"),
+  section: z.string().min(1, "Section is required"),
+  date: z.string().min(1, "Date is required"),
+  start_time: z.string().min(1, "Start time is required"),
+  end_time: z.string().min(1, "End time is required"),
+  priority: z.string().min(1, "Priority is required"),
+  mode: z.string().min(1, "Mode is required"),
+  description: z.string().min(10, "Please provide at least 10 characters"),
+  requirements: z.string().optional(),
+  special_instructions: z.string().optional(),
+})
+
+// Add interface for form options
+interface FormOptions {
+  subjects: Record<string, string>;
+  grades: Record<string, string>;
+  sections: Record<string, string>;
+  priorities: Record<string, string>;
+  modes: Record<string, string>;
+}
+
+
 
 export function CreateRequestForm() {
-  return (
-    <ScrollArea className="h-[500px] w-full rounded-md border border-black p-4 bg-white text-black">
-      <form>
-        <div className="grid grid-cols-1 gap-4">
-          {/* School */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="school" className="text-black">School</Label>
-            <Input 
-              id="school" 
-              type="text" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+  const [isLoading, setIsLoading] = useState(false)
+  const [isDraft, setIsDraft] = useState(false)
+  const [formOptions, setFormOptions] = useState<FormOptions | null>(null)
+  const [isLoadingOptions, setIsLoadingOptions] = useState(true)
+  const { toast } = useToast()
+
+  // Fetch form options from backend
+  useEffect(() => {  
+  const fetchFormOptions = async () => {
+    try {
+      const response = await fetch(BASE_API_URL + "/api/substitute-form-options/", {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to load form options");
+      }
+      
+      const data = await response.json();
+      setFormOptions(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not load form options. Please refresh the page.",
+        variant: "destructive",
+      });
+      console.error("Error loading form options:", error);
+    } finally {
+      setIsLoadingOptions(false);
+    }
+  };
+
+  fetchFormOptions();
+}, [toast]);
+
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      subject: "",
+      grade: "",
+      section: "A",
+      date: "",
+      start_time: "",
+      end_time: "",
+      priority: "MEDIUM",
+      mode: "ONLINE",
+      description: "",
+      requirements: "",
+      special_instructions: "",
+    },
+  })
+
+
+
+
+
+
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    setIsLoading(true)
+    try {
+      const requestBody = {
+        ...data
+      }
+      
+      console.log("Sending request data:", requestBody);
+      
+      const response = await fetch(BASE_API_URL+"/api/substitute-requests/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        },
+        body: JSON.stringify(requestBody),
+      })
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Server error:", errorData);
+        throw new Error(errorData.detail || "Failed to create request");
+      }
+  
+      const result = await response.json()
+      
+      toast({
+        title: isDraft ? "Draft saved" : "Request submitted",
+        description: isDraft ? 
+          "Your request draft has been saved successfully." : 
+          "Your substitute request has been submitted and teachers are being notified.",
+        variant: "success",
+      })
+      
+      form.reset()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    setIsDraft(true);
+    await form.handleSubmit(onSubmit)();
+  }
+
+    // Update the JSX to use dynamic options
+    if (isLoadingOptions) {
+      return (
+        <div className="flex justify-center items-center h-[500px] border rounded-md p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-black" />
+          <p className="ml-2 text-black">Loading form options...</p>
+        </div>
+      )
+    }
+  
+
+    return (
+      <ScrollArea className="h-[500px] w-full rounded-md border border-black p-4 bg-white text-black">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">  
+
+            {/* Subject - Now using dynamic options */}
+            <FormField
+              control={form.control}
+              name="subject"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Subject</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white text-black border-black">
+                        <SelectValue placeholder="Select Subject" className="text-black" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-white text-black">
+                      {formOptions && Object.entries(formOptions.subjects).map(([value, label]) => (
+                        <SelectItem key={value} value={value} className="text-black hover:bg-gray-100">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* Requested By */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="requested-by" className="text-black">Requested By</Label>
-            <Input 
-              id="requested-by" 
-              type="text" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* Grade - Now using dynamic options */}
+            <FormField
+              control={form.control}
+              name="grade"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Grade</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white text-black border-black">
+                        <SelectValue placeholder="Select Grade" className="text-black" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-white text-black">
+                      {formOptions && Object.entries(formOptions.grades).map(([value, label]) => (
+                        <SelectItem key={value} value={value} className="text-black hover:bg-gray-100">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-
-          {/* Subject */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="subject" className="text-black">Subject</Label>
-            <Input 
-              id="subject" 
-              type="text" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            
+            
+            {/* Section - Now using dynamic options */}
+            <FormField
+              control={form.control}
+              name="section"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Section</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white text-black border-black">
+                        <SelectValue placeholder="Select Section" className="text-black" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-white text-black">
+                      {formOptions && Object.entries(formOptions.sections).map(([value, label]) => (
+                        <SelectItem key={value} value={value} className="text-black hover:bg-gray-100">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* Grade */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="grade" className="text-black">Grade</Label>
-            <Input 
-              id="grade" 
-              type="text" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* Date */}
+            <FormField
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Date</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field}
+                      type="date"
+                      className="bg-white text-black border-black focus:border-black" 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* Section */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="section" className="text-black">Section</Label>
-            <Input 
-              id="section" 
-              type="text" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* Start Time */}
+            <FormField
+              control={form.control}
+              name="start_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Start Time</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field}
+                      type="time"
+                      className="bg-white text-black border-black focus:border-black" 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* Date */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="date" className="text-black">Date</Label>
-            <Input 
-              id="date" 
-              type="date" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* End Time */}
+            <FormField
+              control={form.control}
+              name="end_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">End Time</FormLabel>
+                  <FormControl>
+                    <Input 
+                      {...field}
+                      type="time"
+                      className="bg-white text-black border-black focus:border-black" 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* Start Time */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="start-time" className="text-black">Start Time</Label>
-            <Input 
-              id="start-time" 
-              type="time" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* Priority - Now using dynamic options */}
+            <FormField
+              control={form.control}
+              name="priority"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Priority</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white text-black border-black">
+                        <SelectValue placeholder="Select Priority" className="text-black" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-white text-black">
+                      {formOptions && Object.entries(formOptions.priorities).map(([value, label]) => (
+                        <SelectItem key={value} value={value} className="text-black hover:bg-gray-100">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          {/* End Time */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="end-time" className="text-black">End Time</Label>
-            <Input 
-              id="end-time" 
-              type="time" 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
+            {/* Mode - Now using dynamic options */}
+            <FormField
+              control={form.control}
+              name="mode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-black">Mode</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full bg-white text-black border-black">
+                        <SelectValue placeholder="Select Mode" className="text-black" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-white text-black">
+                      {formOptions && Object.entries(formOptions.modes).map(([value, label]) => (
+                        <SelectItem key={value} value={value} className="text-black hover:bg-gray-100">
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-
-          {/* Priority */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="priority" className="text-black">Priority</Label>
-            <Select>
-              <SelectTrigger className="w-full bg-white text-black border-black">
-                <SelectValue placeholder="Select Priority" className="text-black" />
-              </SelectTrigger>
-              <SelectContent className="bg-white text-black">
-                <SelectItem value="low" className="text-black hover:bg-gray-100">Low</SelectItem>
-                <SelectItem value="medium" className="text-black hover:bg-gray-100">Medium</SelectItem>
-                <SelectItem value="high" className="text-black hover:bg-gray-100">High</SelectItem>
-                <SelectItem value="urgent" className="text-black hover:bg-gray-100">Urgent</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Mode */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="mode" className="text-black">Mode</Label>
-            <Select>
-              <SelectTrigger className="w-full bg-white text-black border-black">
-                <SelectValue placeholder="Select Mode" className="text-black" />
-              </SelectTrigger>
-              <SelectContent className="bg-white text-black">
-                <SelectItem value="online" className="text-black hover:bg-gray-100">Online</SelectItem>
-                <SelectItem value="offline" className="text-black hover:bg-gray-100">Offline</SelectItem>
-                <SelectItem value="hybrid" className="text-black hover:bg-gray-100">Hybrid</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Description */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="description" className="text-black">Description</Label>
-            <Textarea 
-              id="description" 
-              rows={4} 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-black">Description</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    {...field}
+                    rows={4}
+                    className="bg-white text-black border-black focus:border-black" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           {/* Requirements */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="requirements" className="text-black">Requirements</Label>
-            <Textarea 
-              id="requirements" 
-              rows={4} 
-              required 
-              className="bg-white text-black border-black focus:border-black focus:ring-black" 
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="requirements"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-black">Requirements</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    {...field}
+                    rows={3}
+                    className="bg-white text-black border-black focus:border-black" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-          <Button 
-            type="submit" 
-            className="mt-4 w-full bg-black text-white hover:bg-gray-800"
-          >
-            Submit Request
-          </Button>
-        </div>
-      </form>
+          {/* Special Instructions */}
+          <FormField
+            control={form.control}
+            name="special_instructions"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-black">Special Instructions</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    {...field}
+                    rows={4}
+                    placeholder="Any special instructions for the substitute teacher..."
+                    className="bg-white text-black border-black focus:border-black" 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+<div className="flex gap-2 justify-end mt-4">
+  <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
+    Save Draft
+  </Button>
+  <Button type="submit" disabled={isLoading}>
+    {isLoading ? (
+      <>
+        <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+        Submitting...
+      </>
+    ) : (
+      "Submit Request"
+    )}
+  </Button>
+</div>
+          </form>
+      </Form>
     </ScrollArea>
   )
 }

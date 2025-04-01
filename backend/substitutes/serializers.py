@@ -85,14 +85,13 @@ class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
             'requirements',
             'special_instructions'
         ]
-        read_only_fields = ['id','school', 'created_at', 'updated_at']
-        
+        read_only_fields = ['id', 'school', 'requested_by', 'created_at', 'updated_at']        
     def create(self, validated_data):
         user = self.context['request'].user
         
         # Get school based on user type
-        if user.user_type == 'SCHOOL_ADMIN' or 'INTERNAL_TEACHER' or 'PRINCIPAL':
-            school = School.objects.get(user=user)
+        if user.user_type in ['SCHOOL_ADMIN', 'INTERNAL_TEACHER', 'PRINCIPAL']:
+            school = user.school_staff.school
         else:
             raise serializers.ValidationError("Only school admins, principals and internal teachers can create substitute requests")
             

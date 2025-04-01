@@ -14,11 +14,16 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { DataTable } from "./data-table"
+import { DataTable } from "./components/data-table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { columns, Request } from "./columns"
+import { columns, Request } from "./components/columns"
 import { AvailabilityForm } from "@/components/dashboard/AvailabilityForm"
 import { CreateRequestForm } from "@/components/dashboard/CreateRequestForm"
+import { NotificationCenter } from "./components/notification-center"
+import { useState, useEffect } from "react"
+import { BASE_API_URL } from "@/lib/config"
+
+
 
 const sampleData: Request[] = [
   {
@@ -89,6 +94,31 @@ const teacherUserData = {
 };
 
 export default function Page() {
+
+  const [requests, setRequests] = useState<Request[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        setIsLoading(true)
+        const response = await fetch(`${BASE_API_URL}/api/substitute-requests/`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+          }
+        })
+        if (!response.ok) throw new Error("Failed to fetch requests")
+        const data = await response.json()
+        setRequests(data)
+      } catch (error) {
+        console.error("Error fetching requests:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    fetchRequests()
+  }, [])
   return (
     <SidebarProvider>
       <SidebarLeft />
@@ -106,6 +136,9 @@ export default function Page() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+          <div className="flex items-center gap-2 px-3">
+            <NotificationCenter /> {/* Add this component */}
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4">
@@ -129,7 +162,7 @@ export default function Page() {
                 </SheetContent>
               </Sheet>
             </div>
-            <DataTable columns={columns} data={sampleData} />
+            <DataTable columns={columns} data={sampleData} isLoading={isLoading} />
             <div className="mt-6">
               <AvailabilityForm />
             </div>

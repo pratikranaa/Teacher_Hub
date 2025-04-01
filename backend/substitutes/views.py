@@ -6,9 +6,28 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets
 from django.utils import timezone
 from .models import SubstituteRequest, RequestInvitation
-from .tasks import send_assignment_notifications
-from .serializers import SubstituteRequestSerializer, RequestInvitationSerializer, SubstituteRequestDetailSerializer, TeacherInvitationSerializer
+# from .tasks import send_assignment_notifications
+from .serializers import SubstituteRequestSerializer, SubstituteRequestDetailSerializer, TeacherInvitationSerializer, SubstituteRequestCreateSerializer
 from teaching_sessions.models import TeachingSession
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_form_options(request):
+    """Return all options needed for the substitute request form"""
+    from .models import SubstituteRequest
+    
+    return Response({
+        'subjects': dict(SubstituteRequest.SUBJECTS),
+        'grades': dict(SubstituteRequest.GRADE_CHOICES),
+        'sections': dict(SubstituteRequest.SECTION),
+        'priorities': dict(SubstituteRequest.PRIORITY_CHOICES),
+        'modes': dict(SubstituteRequest.MODE_CHOICES),
+    })
 
 class SubstituteRequestViewSet(viewsets.ModelViewSet):
     """
@@ -17,6 +36,60 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     queryset = SubstituteRequest.objects.all()
     serializer_class = SubstituteRequestSerializer
     permission_classes = [IsAuthenticated]
+    
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new substitute request
+        """
+        
+        
+        serializer = SubstituteRequestCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        substitute_request = serializer.save()
+        
+        # Notify teachers about the new request
+        # send_assignment_notifications.delay(substitute_request.id)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        """
+        Update an existing substitute request
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = SubstituteRequestSerializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        substitute_request = serializer.save()
+        
+        # Notify teachers about the updated request
+        # send_assignment_notifications.delay(substitute_request.id)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        Delete a substitute request
+        """
+        instance = self.get_object()
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a specific substitute request
+        """
+        instance = self.get_object()
+        serializer = SubstituteRequestDetailSerializer(instance)
+        return Response(serializer.data)
+    
+    def list(self, request, *args, **kwargs):
+        """
+        List all substitute requests
+        """
+        queryset = self.get_queryset()
+        serializer = SubstituteRequestSerializer(queryset, many=True)
+        return Response(serializer.data)
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def accept_request(self, request, pk=None):
@@ -88,9 +161,15 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL', 'INTERNAL_TEACHER']:
-            return SubstituteRequest.objects.filter(school=user.school)
-        return SubstituteRequest.objects.none()
+        
+        try:
+            if user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL', 'INTERNAL_TEACHER']:
+                return SubstituteRequest.objects.filter(school=user.school)
+        except AttributeError:
+            # Handle case where user does not have a school attribute
+            return SubstituteRequest.objects.none()
+        finally:   
+            return SubstituteRequest.objects.none()
 
     @action(detail=True, methods=['get'])
     def invitation_history(self, request, pk=None):

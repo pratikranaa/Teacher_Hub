@@ -144,7 +144,7 @@ class SubstituteRequest(models.Model):
     description = models.TextField()
     requirements = models.JSONField(
         default=dict,
-        help_text="Specific requirements for the substitute teacher"
+        help_text="Specific requirements for the substitute teacher", blank=True
     )
     meeting_link = models.URLField(null=True, blank=True)
     special_instructions = models.TextField(blank=True)

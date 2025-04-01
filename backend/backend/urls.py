@@ -42,6 +42,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from accounts.views import UserLoginView
 
+
 schema_view = swagger_get_schema_view(
     openapi.Info(
         title="Teacher Hub API",
@@ -55,6 +56,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', schema_view.with_ui('swagger', cache_timeout=0), name="swagger-schema"),
     path('api/',include('accounts.urls')),
+    path('api/', include('substitutes.urls')),
     path('api/login/', UserLoginView.as_view(), name='token_obtain_pair'),
     path('api/login-refresh/', jwt_views.TokenRefreshView.as_view(), name='token_refresh'),
     path('api/login-verify/', jwt_views.TokenVerifyView.as_view(), name='verify_token'),
