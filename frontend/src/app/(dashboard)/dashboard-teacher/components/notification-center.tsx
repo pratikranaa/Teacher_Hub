@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { useWebSocket } from '@/contexts/websocket-service'
+// import { useWebSocket } from '@/contexts/websocket-service'
 import { useRouter } from 'next/navigation'
 
 export function NotificationCenter() {

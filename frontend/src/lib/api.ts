@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { getAuthTokens } from './auth'; // Adjust the import path as necessary
+import { access } from 'fs';
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -63,15 +65,46 @@ export const createRequest = async (requestData) => {
   return axios.post(`${API_URL}/api/substitute-requests/`, requestData);
 };
 
-// Accept a request invitation
-export const acceptRequest = async (id) => {
-  return axios.post(`${API_URL}/api/substitute-requests/${id}/accept_request/`);
-};
 
-// Decline a request invitation
-export const declineRequest = async (id, note) => {
-  return axios.post(`${API_URL}/api/substitute-requests/${id}/decline_request/`, { note });
-};
+export async function acceptSubstituteRequest(requestId: string) {
+  const token = getAuthTokens()?.accessToken;
+  const response = await fetch(`/api/substitute-requests/${requestId}/accept_request/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to accept request: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+
+export async function declineSubstituteRequest(requestId: string, rejectionNote: string) {
+  const token = getAuthTokens()?.accessToken;
+
+  const response = await fetch(`/api/substitute-requests/${requestId}/decline_request/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ 
+      response_note: rejectionNote 
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to decline request: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
 
 // Get form options (subjects, grades, etc)
 export const getFormOptions = async () => {

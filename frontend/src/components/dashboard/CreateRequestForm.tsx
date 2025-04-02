@@ -52,8 +52,7 @@ interface FormOptions {
 }
 
 
-
-export function CreateRequestForm() {
+export function CreateRequestForm({ onClose }: { onClose?: () => void }) {
   const [isLoading, setIsLoading] = useState(false)
   const [isDraft, setIsDraft] = useState(false)
   const [formOptions, setFormOptions] = useState<FormOptions | null>(null)
@@ -144,10 +143,15 @@ export function CreateRequestForm() {
         description: isDraft ? 
           "Your request draft has been saved successfully." : 
           "Your substitute request has been submitted and teachers are being notified.",
-        variant: "success",
+        variant: "default",
       })
       
       form.reset()
+      
+      // Close the side sheet if not in draft mode and onClose is provided
+      if (!isDraft && onClose) {
+        onClose();
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -158,7 +162,6 @@ export function CreateRequestForm() {
       setIsLoading(false)
     }
   }
-
   const handleSaveDraft = async () => {
     setIsDraft(true);
     await form.handleSubmit(onSubmit)();
@@ -443,21 +446,21 @@ export function CreateRequestForm() {
             )}
           />
 
-<div className="flex gap-2 justify-end mt-4">
-  <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
-    Save Draft
-  </Button>
-  <Button type="submit" disabled={isLoading}>
-    {isLoading ? (
-      <>
-        <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-        Submitting...
-      </>
-    ) : (
-      "Submit Request"
-    )}
-  </Button>
-</div>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={handleSaveDraft} disabled={isLoading}>
+              Save Draft
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+                {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Request"
+              )}
+            </Button>
+          </div>
           </form>
       </Form>
     </ScrollArea>

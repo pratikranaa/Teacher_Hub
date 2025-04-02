@@ -29,13 +29,100 @@ def get_form_options(request):
         'modes': dict(SubstituteRequest.MODE_CHOICES),
     })
 
+@permission_classes([IsAuthenticated])
 class SubstituteRequestViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Substitute Requests
     """
-    queryset = SubstituteRequest.objects.all()
-    serializer_class = SubstituteRequestSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return SubstituteRequestCreateSerializer
+        elif self.action in ['retrieve', 'update', 'partial_update', 'invitation_history']:
+            return SubstituteRequestDetailSerializer
+        return SubstituteRequestSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Return nothing for unauthenticated users
+        if not user.is_authenticated:
+            return SubstituteRequest.objects.none()
+        
+        # School admins and principals see all requests for their school
+        if user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            try:
+                return SubstituteRequest.objects.filter(school=user.school)
+            except AttributeError:
+                return SubstituteRequest.objects.none()
+        
+        # Internal teachers see requests they created
+        elif user.user_type == 'INTERNAL_TEACHER':
+            return SubstituteRequest.objects.filter(requested_by=user)
+        
+        # Substitute teachers see requests they were invited to
+        elif user.user_type in ['EXTERNAL_TEACHER', 'INTERNAL_TEACHER']:
+            return SubstituteRequest.objects.filter(
+                invitations__teacher=user
+            ).distinct()
+        
+        # Default case
+        return SubstituteRequest.objects.none()
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_requests(self, request):
+        """Returns requests created by the current user"""
+        queryset = SubstituteRequest.objects.filter(requested_by=request.user)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def requests_to_me(self, request):
+        """Returns requests where the current user was invited"""
+        queryset = SubstituteRequest.objects.filter(
+            invitations__teacher=request.user
+        ).distinct()
+        
+        # Allow filtering by status
+        status_param = request.query_params.get('status', None)
+        if status_param:
+            queryset = queryset.filter(invitations__status=status_param)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def school_requests(self, request):
+        """Returns all requests for the school (admin/principal only)"""
+        user = request.user
+        if user.user_type not in ['SCHOOL_ADMIN', 'PRINCIPAL']:
+            return Response(
+                {"detail": "You don't have permission to access this resource."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            queryset = SubstituteRequest.objects.filter(school=user.school_staff.school)
+            
+            # Optional: Allow filtering by status
+            req_status = request.query_params.get('status', None)
+            if req_status:
+                queryset = queryset.filter(status=req_status)
+                
+            # Optional: Allow filtering by date range
+            start_date = request.query_params.get('start_date', None)
+            end_date = request.query_params.get('end_date', None)
+            if start_date and end_date:
+                queryset = queryset.filter(date__range=[start_date, end_date])
+                
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        except AttributeError:
+            return Response(
+                {"detail": "School information not found."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def create(self, request, *args, **kwargs):
         """
@@ -121,26 +208,29 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
                 status='SCHEDULED'
             )
             
-            # Withdraw other invitations
+            # Withdraw other pending invitations
             RequestInvitation.objects.filter(
-                substitute_request=substitute_request,
+                request=substitute_request,
                 status='PENDING'
-            ).update(status='WITHDRAWN')
+            ).exclude(id=invitation.id).update(status='WITHDRAWN', responded_at=timezone.now())
             
             # Send assignment notification
             send_assignment_notifications.delay(substitute_request.id)
             
-            return Response({'detail': 'You have accepted the request.'}, status=status.HTTP_200_OK)
+            return Response({"detail": "Request accepted successfully"})
         except RequestInvitation.DoesNotExist:
-            return Response({'detail': 'Invitation not found or already responded.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "No pending invitation found for this request"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'])
     def decline_request(self, request, pk=None):
-        """
-        Teacher declines a substitute request.
-        """
+        """Decline a substitute request invitation"""
         substitute_request = self.get_object()
         teacher = request.user
+        response_note = request.data.get('response_note', '')
+ 
         try:
             invitation = RequestInvitation.objects.get(
                 substitute_request=substitute_request,
@@ -148,28 +238,12 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
                 status='PENDING'
             )
             invitation.status = 'DECLINED'
+            invitation.response_note = response_note
             invitation.responded_at = timezone.now()
             invitation.save()
             return Response({'detail': 'You have declined the request.'}, status=status.HTTP_200_OK)
         except RequestInvitation.DoesNotExist:
             return Response({'detail': 'Invitation not found or already responded.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    def get_serializer_class(self):
-        if self.action in ['retrieve', 'invitation_history']:
-            return SubstituteRequestDetailSerializer
-        return SubstituteRequestSerializer
-
-    def get_queryset(self):
-        user = self.request.user
-        
-        try:
-            if user.user_type in ['SCHOOL_ADMIN', 'PRINCIPAL', 'INTERNAL_TEACHER']:
-                return SubstituteRequest.objects.filter(school=user.school)
-        except AttributeError:
-            # Handle case where user does not have a school attribute
-            return SubstituteRequest.objects.none()
-        finally:   
-            return SubstituteRequest.objects.none()
 
     @action(detail=True, methods=['get'])
     def invitation_history(self, request, pk=None):
@@ -197,3 +271,27 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
                 {'detail': 'Teacher invitation not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+            
+
+    
+    @action(detail=False, methods=['get'])
+    def requests_to_me(self, request):
+        """
+        Returns requests where the current user was invited
+        """
+        user = request.user
+        queryset = SubstituteRequest.objects.filter(
+            invitations__teacher=user
+        ).distinct()
+        
+        # Optional: Allow filtering by status
+        status = request.query_params.get('status', None)
+        if status:
+            queryset = queryset.filter(invitations__status=status)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    
+ 
+    

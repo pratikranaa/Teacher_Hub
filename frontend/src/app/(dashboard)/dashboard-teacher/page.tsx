@@ -14,79 +14,20 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { DataTable } from "./components/data-table"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { columns, Request } from "./components/columns"
-import { AvailabilityForm } from "@/components/dashboard/AvailabilityForm"
-import { CreateRequestForm } from "@/components/dashboard/CreateRequestForm"
-import { NotificationCenter } from "./components/notification-center"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useState, useEffect } from "react"
 import { BASE_API_URL } from "@/lib/config"
+import { AvailabilityForm } from "@/components/dashboard/AvailabilityForm"
+import { CreateRequestForm } from "@/components/dashboard/CreateRequestForm"
+import { PendingRequestsTable } from "./components/pending-requests-table"
+import { RequestHistoryTable } from "./components/request-history-table"
+import { RejectedRequestsTable } from "./components/rejected-requests-table"
+import { CreatedRequestsTable } from "./components/created-requests-table"
+import { acceptSubstituteRequest, declineSubstituteRequest } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
-
-
-const sampleData: Request[] = [
-  {
-    id: "REQ001",
-    status: "pending",
-    details: "This is a pending request for class scheduling.",
-    assignedTeacher: "John Smith",
-    subject: "Mathematics",
-    grade: "10",
-    section: "A",
-    startTime: "09:00 AM",
-    endTime: "10:30 AM",
-    priority: "high",
-    mode: "online",
-    description: "Need a specialized math class for advanced students",
-    requirements: "Require additional resources for advanced mathematics"
-  },
-  {
-    id: "REQ002",
-    status: "confirmed",
-    details: "This request has been confirmed for the upcoming session.",
-    assignedTeacher: "Emily Davis",
-    subject: "Science",
-    grade: "8",
-    section: "B",
-    startTime: "11:00 AM",
-    endTime: "12:30 PM",
-    priority: "medium",
-    mode: "offline",
-    description: "Regular science class with lab session",
-    requirements: "Lab equipment needed for practical experiments"
-  },
-  {
-    id: "REQ003",
-    status: "rejected",
-    details: "This request was rejected due to scheduling conflicts.",
-    assignedTeacher: "Michael Johnson",
-    subject: "Literature",
-    grade: "11",
-    section: "C",
-    startTime: "02:00 PM",
-    endTime: "03:30 PM",
-    priority: "low",
-    mode: "online",
-    description: "Additional literature study session",
-    requirements: "Access to digital library resources"
-  },
-  {
-    id: "REQ004",
-    status: "pending",
-    details: "This is another pending request for a new class.",
-    assignedTeacher: "Sarah Williams",
-    subject: "Computer Science",
-    grade: "12",
-    section: "A",
-    startTime: "10:00 AM",
-    endTime: "11:30 AM",
-    priority: "high",
-    mode: "offline",
-    description: "Advanced programming workshop",
-    requirements: "Computer lab with latest software development tools"
-  },
-]
 const teacherUserData = {
   name: "Teacher1",
   email: "teacher1@example.com",
@@ -94,31 +35,132 @@ const teacherUserData = {
 };
 
 export default function Page() {
-
-  const [requests, setRequests] = useState<Request[]>([])
+  const [pendingRequests, setPendingRequests] = useState([])
+  const [requestHistory, setRequestHistory] = useState([])
+  const [rejectedRequests, setRejectedRequests] = useState([])
+  const [createdRequests, setCreatedRequests] = useState([]) // Add this state
   const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
   
+  const fetchRequests = async () => {
+    try {
+      setIsLoading(true)
+      const created_response = await fetch(`${BASE_API_URL}/api/substitute-requests/my_requests`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        }
+      })
+      
+      if (!created_response.ok) throw new Error("Failed to fetch requests")
+      const created_data = await created_response.json()
+
+      const invited_response = await fetch(`${BASE_API_URL}/api/substitute-requests/requests_to_me`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        }
+      })
+      if (!invited_response.ok) throw new Error("Failed to fetch requests")
+
+      const invited_data = await invited_response.json()
+
+      
+      // Filter requests based on status
+      const pending = invited_data.filter(req => 
+        req.invitations?.some(inv => 
+          inv.status === 'PENDING'
+        )
+      )
+      
+      const history = invited_data.filter(req => 
+        req.invitations?.some(inv =>  
+          ['ACCEPTED', 'WITHDRAWN', 'EXPIRED', 'DECLINED'].includes(inv.status)
+        )
+      )
+
+      const rejected = invited_data.filter(req => 
+        req.invitations?.some(inv => 
+          inv.status === 'REJECTED'
+        )
+      )
+      
+      
+      // Filter requests created by the current teacher
+      const created = created_data
+      
+      setPendingRequests(pending)
+      setRejectedRequests(rejected)
+      setRequestHistory(history)
+      setCreatedRequests(created) // Set created requests
+    } catch (error) {
+      console.error("Error fetching requests:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load requests. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        setIsLoading(true)
-        const response = await fetch(`${BASE_API_URL}/api/substitute-requests/`, {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
-          }
+    fetchRequests()
+    
+    // Set up WebSocket connection to listen for new requests
+    const socket = new WebSocket(`wss://${BASE_API_URL}/ws/substitute-requests/`)
+    
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === "substitute.invitation") {
+        toast({
+          title: "New Substitute Request",
+          description: `You've been invited to teach ${data.content.subject} on ${data.content.date}`,
         })
-        if (!response.ok) throw new Error("Failed to fetch requests")
-        const data = await response.json()
-        setRequests(data)
-      } catch (error) {
-        console.error("Error fetching requests:", error)
-      } finally {
-        setIsLoading(false)
+        fetchRequests()
       }
     }
     
-    fetchRequests()
+    return () => {
+      socket.close()
+    }
   }, [])
+
+  const handleAcceptRequest = async (requestId) => {
+    try {
+      await acceptSubstituteRequest(requestId)
+      toast({
+        title: "Success",
+        description: "You have accepted the request.",
+      })
+      fetchRequests()
+    } catch (error) {
+      console.error("Error accepting request:", error)
+      toast({
+        title: "Error",
+        description: "Failed to accept request. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDeclineRequest = async (requestId, note) => {
+    try {
+      await declineSubstituteRequest(requestId, note)
+      toast({
+        title: "Success",
+        description: "You have declined the request.",
+      })
+      fetchRequests()
+    } catch (error) {
+      console.error("Error declining request:", error)
+      toast({
+        title: "Error",
+        description: "Failed to decline request. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
   return (
     <SidebarProvider>
       <SidebarLeft />
@@ -131,44 +173,81 @@ export default function Page() {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbPage className="line-clamp-1 text-3xl font-bold">
-                    Teacher Dashboard
+                    Teacher Hub
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <div className="flex items-center gap-2 px-3">
-            <NotificationCenter /> {/* Add this component */}
-          </div>
         </header>
+        
         <div className="flex flex-1 flex-col gap-4 p-4">
-          <div className="mx-auto w-full max-w-5xl rounded-xl bg-muted/5 p-6">
+          <div className="mx-auto w-full max-w-6xl rounded-xl bg-muted/5 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold">Request History</h1>
-              {/* Create Request Button */}
+              <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
+              
               <Sheet>
-                <SheetTrigger>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                    Create Request
-                  </button>
+                <SheetTrigger asChild>
+                  <Button variant="default">Create Request</Button>
                 </SheetTrigger>
                 <SheetContent>
                   <SheetHeader>
                     <SheetTitle>Create a New Request</SheetTitle>
                   </SheetHeader>
                   <div className="mt-4">
-                    <CreateRequestForm />
+                    <CreateRequestForm onSuccess={() => fetchRequests()} />
                   </div>
                 </SheetContent>
               </Sheet>
             </div>
-            <DataTable columns={columns} data={sampleData} isLoading={isLoading} />
+
+            <Tabs defaultValue="created">
+              <TabsList className="mb-4">
+              <TabsTrigger value="created">Created Requests</TabsTrigger>
+                <TabsTrigger value="pending">Pending Requests</TabsTrigger>
+                <TabsTrigger value="history">Request History</TabsTrigger>
+                <TabsTrigger value="rejected">Rejected Requests</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="created">
+                <CreatedRequestsTable 
+                  data={createdRequests} 
+                  isLoading={isLoading} 
+                  onRefresh={fetchRequests}
+                />
+              </TabsContent>
+              
+              <TabsContent value="pending">
+                <PendingRequestsTable 
+                  data={pendingRequests} 
+                  isLoading={isLoading} 
+                  onAccept={handleAcceptRequest}
+                  onDecline={handleDeclineRequest}
+                />
+              </TabsContent>
+              
+              <TabsContent value="history">
+                <RequestHistoryTable 
+                  data={requestHistory} 
+                  isLoading={isLoading} 
+                />
+              </TabsContent>
+              
+              <TabsContent value="rejected">
+                <RejectedRequestsTable 
+                  data={rejectedRequests} 
+                  isLoading={isLoading} 
+                />
+              </TabsContent>
+            </Tabs>
+            
             <div className="mt-6">
               <AvailabilityForm />
             </div>
           </div>
         </div>
       </SidebarInset>
+      
       <SidebarRight userData={teacherUserData} />
     </SidebarProvider>
   )

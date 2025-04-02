@@ -166,12 +166,6 @@ class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
             'withdrawn': obj.invitations.filter(status='WITHDRAWN').count(),
             'expired': obj.invitations.filter(status='EXPIRED').count(),
         }
-    
-    
-
-
-from rest_framework import serializers
-from .models import SubstituteRequest
 
 class SubstituteRequestSerializer(serializers.ModelSerializer):
     """

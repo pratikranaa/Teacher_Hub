@@ -7,8 +7,10 @@ from channels.layers import get_channel_layer
 @receiver(post_save, sender=SubstituteRequest)
 def handle_substitute_request_update(sender, instance, created, **kwargs):
     if created:
+        print(f"Signal triggered for request: {instance.id}")
         # Trigger matching algorithm
         from .tasks import match_teachers_to_request
+        print(f"Dispatching match_teachers_to_request task for request: {instance.id}")
         match_teachers_to_request.delay(instance.id)
         
         # Create notification for school admin

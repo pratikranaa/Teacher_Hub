@@ -27,7 +27,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {    
     // Connect to WebSocket
     const accessToken = localStorage.getItem("accessToken")
-    const ws = new WebSocket(`ws://localhost:8000/ws/notifications/${userId}/?token=${accessToken}`)
+    const ws = new WebSocket(`ws://localhost:8000/ws/notifications/?token=${accessToken}`)
     
     ws.onopen = () => {
       console.log('WebSocket connected')
@@ -134,10 +134,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   )
 }
 
-export const useWebSocket = () => {
-  const context = useContext(WebSocketContext)
-  if (context === undefined) {
-    throw new Error("useWebSocket must be used within a WebSocketProvider")
-  }
-  return context
-}
+// export const useWebSocket = () => {
+//   const context = useContext(WebSocketContext)
+//   if (context === undefined) {
+//     throw new Error("useWebSocket must be used within a WebSocketProvider")
+//   }
+//   return context
+// }
