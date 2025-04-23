@@ -126,18 +126,54 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """
-        Create a new substitute request
+        Create a new substitute request and directly match teachers
         """
-        
         
         serializer = SubstituteRequestCreateSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         substitute_request = serializer.save()
         
-        # Notify teachers about the new request
-        # send_assignment_notifications.delay(substitute_request.id)
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # Direct matching instead of using Celery
+        try:
+            # Get school algorithm settings
+            settings = substitute_request.school.get_algorithm_settings
+            if not isinstance(settings, dict):
+                settings = {
+                    'batch_size': 10, 
+                    'wait_time_minutes': 10,
+                    'weights': {'experience': 1, 'rating': 1, 'distance': 1}
+                }
+            
+            # Get available teachers
+            from .tasks import get_ranked_teachers
+            ranked_teachers = get_ranked_teachers(substitute_request, settings)
+            
+            # Log matching results for debugging
+            print(f"Found {ranked_teachers.count()} matching teachers for request {substitute_request.id}")
+            
+            # Process first batch of teachers
+            from .tasks import process_teacher_batch
+            if ranked_teachers.exists():
+                process_teacher_batch(substitute_request, ranked_teachers[:settings['batch_size']], 1)
+                substitute_request.status = 'AWAITING_ACCEPTANCE'
+                substitute_request.save(update_fields=['status'])
+                
+            return Response({
+                **serializer.data,
+                'matching_teachers_count': ranked_teachers.count(),
+                'detail': 'Request created and teachers matched successfully'
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            # Log error but don't fail the request creation
+            print(f"Error in teacher matching: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return Response({
+                **serializer.data,
+                'matching_error': str(e),
+                'detail': 'Request created but teacher matching failed'
+            }, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
         """
@@ -210,7 +246,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
             
             # Withdraw other pending invitations
             RequestInvitation.objects.filter(
-                request=substitute_request,
+                substitute_request=substitute_request,
                 status='PENDING'
             ).exclude(id=invitation.id).update(status='WITHDRAWN', responded_at=timezone.now())
             
@@ -224,7 +260,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def decline_request(self, request, pk=None):
         """Decline a substitute request invitation"""
         substitute_request = self.get_object()

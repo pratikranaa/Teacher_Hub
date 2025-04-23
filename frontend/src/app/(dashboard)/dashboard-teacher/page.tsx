@@ -58,39 +58,24 @@ export default function Page() {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
         }
-      })
+      } )
       if (!invited_response.ok) throw new Error("Failed to fetch requests")
 
       const invited_data = await invited_response.json()
 
       
       // Filter requests based on status
-      const pending = invited_data.filter(req => 
-        req.invitations?.some(inv => 
-          inv.status === 'PENDING'
-        )
-      )
+      const pending = invited_data.filter(req => req.status === 'AWAITING_ACCEPTANCE')
+      const history = invited_data.filter(req => ['ASSIGNED', 'COMPLETED'].includes(req.status))
+      const rejected = invited_data.filter(req => req.status === 'CANCELLED')
       
-      const history = invited_data.filter(req => 
-        req.invitations?.some(inv =>  
-          ['ACCEPTED', 'WITHDRAWN', 'EXPIRED', 'DECLINED'].includes(inv.status)
-        )
-      )
-
-      const rejected = invited_data.filter(req => 
-        req.invitations?.some(inv => 
-          inv.status === 'REJECTED'
-        )
-      )
-      
-      
-      // Filter requests created by the current teacher
+      // Requests created by the current teacher
       const created = created_data
       
       setPendingRequests(pending)
       setRejectedRequests(rejected)
       setRequestHistory(history)
-      setCreatedRequests(created) // Set created requests
+      setCreatedRequests(created)
     } catch (error) {
       console.error("Error fetching requests:", error)
       toast({

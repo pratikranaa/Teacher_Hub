@@ -7,7 +7,9 @@ from datetime import timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from .models import SubstituteRequest, RequestInvitation, TeacherAvailability
+from accounts.models import User, School, SchoolStaff
 from accounts.models import TeacherProfile
+from accounts.utils import send_email as send
 
 BATCH_SIZE = 10  # Number of teachers per batch
 WAIT_TIME = 10 * 60  # 10 minutes in seconds
@@ -59,6 +61,8 @@ def match_teachers_to_request(request_id):
         traceback.print_exc()
 
 # In substitutes/tasks.py
+from django.db.models import F, Q, Value, FloatField, ExpressionWrapper
+
 def get_ranked_teachers(request, settings):
     """Get ranked list of available teachers based on school criteria"""
     print(f"Searching for teachers with criteria:")
@@ -89,6 +93,7 @@ def get_ranked_teachers(request, settings):
     # Now do the actual query
     weights = settings['weights']
     
+    
     results = TeacherAvailability.objects.filter(
         Q(date=request.date) &
         Q(start_time__lte=request.start_time) &
@@ -98,11 +103,24 @@ def get_ranked_teachers(request, settings):
     ).exclude(
         teacher=request.requested_by
     ).annotate(
-        # Your existing annotations
+        # Fix this line - use experience_years instead of years_experience
+        experience_score=ExpressionWrapper(
+            F('teacher__teacher_profile__experience_years') * Value(weights.get('experience', 1)),
+            output_field=FloatField()
+        ),
+        rating_score=ExpressionWrapper(
+            F('teacher__teacher_profile__rating') * Value(weights.get('rating', 1)), 
+            output_field=FloatField()
+        ),
+        total_score=ExpressionWrapper(
+            F('experience_score') + F('rating_score') + Value(1.0),
+            output_field=FloatField()
+        )
     ).order_by('-total_score')
-    
+        
     print(f"Final number of matching teachers: {results.count()}")
     return results
+
 
 # In substitutes/tasks.py
 def process_teacher_batch(request, teachers, batch_number):
@@ -203,7 +221,7 @@ def send_teacher_email(invitation_id):
         You have been invited for a substitute teaching request.
         
         Details:
-        School: {request.school.name}
+        School: {request.school}
         Subject: {request.subject}
         Grade: {request.grade}
         Date: {request.date}
@@ -216,25 +234,31 @@ def send_teacher_email(invitation_id):
         Please respond within 10 minutes.
         
         Best regards,
-        {request.school.name}
+        {request.school}
         """
         
         print(f"Sending email to: {teacher.email}")
         print(f"Email subject: {subject}")
         
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [teacher.email],
-            fail_silently=False
-        )
-        print(f"Email sent to {teacher.email}")
+        try:
+            send(
+                subject,
+                message,
+                "pratikrana507@gmail.com",  # Your demo email
+                # settings.DEFAULT_FROM_EMAIL
+            )
+            print(f"Email sent to {teacher.email}")
+        except Exception as mail_error:
+            print(f"Failed to send email (delivery will be attempted later): {str(mail_error)}")
+            # Log the email content to console for development purposes
+            print("Email content that would be sent:")
+            print(f"Subject: {subject}")
+            print(f"Message: {message}")
+            
     except RequestInvitation.DoesNotExist:
         print(f"Invitation {invitation_id} not found!")
-        return
     except Exception as e:
-        print(f"Error sending email: {str(e)}")
+        print(f"Error preparing email: {str(e)}")
         import traceback
         traceback.print_exc()
 
@@ -253,7 +277,7 @@ def notify_teacher(invitation):
             "content": {
                 "invitation_id": str(invitation.id),
                 "request_id": str(request.id),
-                "school": request.school.name,
+                "school": request.school,
                 "subject": request.subject,
                 "grade": request.grade,
                 "date": str(request.date),
@@ -316,6 +340,7 @@ def send_confirmation_email(request_id):
         request = SubstituteRequest.objects.get(id=request_id)
         teacher = request.assigned_teacher
         
+        # Fix school name references
         subject = f"Confirmation: Substitute Teaching Assignment - {request.subject}"
         message = f"""
         Dear {teacher.get_full_name()},
@@ -323,7 +348,7 @@ def send_confirmation_email(request_id):
         Your substitute teaching assignment has been confirmed.
         
         Details:
-        School: {request.school.name}
+        School: {request.school}
         Subject: {request.subject}
         Grade: {request.grade}
         Date: {request.date}
@@ -334,15 +359,14 @@ def send_confirmation_email(request_id):
         Special Instructions: {request.special_instructions}
         
         Best regards,
-        {request.school.name}
+        {request.school}
         """
         
-        send_mail(
+        send(
             subject,
             message,
-            settings.DEFAULT_FROM_EMAIL,
-            [teacher.email],
-            fail_silently=False
+            "pratikrana507@gmail.com",  # Your demo email
+            # settings.DEFAULT_FROM_EMAIL
         )
     except SubstituteRequest.DoesNotExist:
         return

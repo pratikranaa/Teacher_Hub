@@ -68,7 +68,7 @@ export const createRequest = async (requestData) => {
 
 export async function acceptSubstituteRequest(requestId: string) {
   const token = getAuthTokens()?.accessToken;
-  const response = await fetch(`/api/substitute-requests/${requestId}/accept_request/`, {
+  const response = await fetch(`${API_URL}/api/substitute-requests/${requestId}/accept_request/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -87,7 +87,7 @@ export async function acceptSubstituteRequest(requestId: string) {
 export async function declineSubstituteRequest(requestId: string, rejectionNote: string) {
   const token = getAuthTokens()?.accessToken;
 
-  const response = await fetch(`/api/substitute-requests/${requestId}/decline_request/`, {
+  const response = await fetch(`${API_URL}/api/substitute-requests/${requestId}/decline_request/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
