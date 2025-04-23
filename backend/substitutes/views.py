@@ -5,15 +5,51 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status, viewsets
 from django.utils import timezone
+import datetime
 from .models import SubstituteRequest, RequestInvitation
 # from .tasks import send_assignment_notifications
 from .serializers import SubstituteRequestSerializer, SubstituteRequestDetailSerializer, TeacherInvitationSerializer, SubstituteRequestCreateSerializer
 from teaching_sessions.models import TeachingSession
-
+from django.shortcuts import get_object_or_404
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+# Add these views to your accounts app
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Notification
+from .serializers import NotificationSerializer
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_notifications(request):
+    """Get user notifications"""
+    notifications = Notification.objects.filter(user=request.user)
+    serializer = NotificationSerializer(notifications, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_notification_read(request, pk):
+    """Mark notification as read"""
+    try:
+        notification = Notification.objects.get(id=pk, user=request.user)
+        notification.read = True
+        notification.save()
+        return Response({"status": "success"})
+    except Notification.DoesNotExist:
+        return Response({"error": "Notification not found"}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def clear_notifications(request):
+    """Clear all notifications"""
+    Notification.objects.filter(user=request.user).delete()
+    return Response({"status": "success"})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -34,6 +70,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Substitute Requests
     """
+    
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -42,6 +79,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
         elif self.action in ['retrieve', 'update', 'partial_update', 'invitation_history']:
             return SubstituteRequestDetailSerializer
         return SubstituteRequestSerializer
+    
     
     def get_queryset(self):
         user = self.request.user
@@ -214,13 +252,16 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
         serializer = SubstituteRequestSerializer(queryset, many=True)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['post'], url_path='accept_request', url_name='accept_request', permission_classes=[IsAuthenticated])
     def accept_request(self, request, pk=None):
         """
         Teacher accepts a substitute request.
         """
-        substitute_request = self.get_object()
+        print("Accepting request")
+        print(f"accept_request called with pk={pk}, user={request.user}")
         teacher = request.user
+        substitute_request = get_object_or_404(SubstituteRequest, pk=pk)
+        print(f"Substitute request: {substitute_request}")
         try:
             invitation = RequestInvitation.objects.get(
                 substitute_request=substitute_request,
@@ -235,14 +276,31 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
             substitute_request.status = 'ASSIGNED'
             substitute_request.save()
             
-            # Create a TeachingSession
-            TeachingSession.objects.create(
+            # --- FIX HERE: Combine date/time and make timezone-aware ---
+            request_date = substitute_request.date
+            start_datetime_naive = datetime.datetime.combine(request_date, substitute_request.start_time)
+            end_datetime_naive = datetime.datetime.combine(request_date, substitute_request.end_time)
+
+            # Make them timezone-aware using Django's current timezone
+            start_datetime_aware = timezone.make_aware(start_datetime_naive)
+            end_datetime_aware = timezone.make_aware(end_datetime_naive)
+
+            # Create TeachingSession using get_or_create to prevent duplicates
+            session, created = TeachingSession.objects.get_or_create(
                 substitute_request=substitute_request,
-                teacher=teacher,
-                start_time=substitute_request.start_time,
-                end_time=substitute_request.end_time,
-                status='SCHEDULED'
+                defaults={
+                    'teacher': teacher,
+                    'start_time': start_datetime_aware, # Use the aware datetime
+                    'end_time': end_datetime_aware,   # Use the aware datetime
+                    'status': 'SCHEDULED',
+                    'mode': substitute_request.mode # Copy mode from request
+                }
             )
+            if created:
+                print(f"--- Created TeachingSession {session.id} ---")
+            else:
+                print(f"--- Found existing TeachingSession {session.id} ---")
+            # --- End Fix ---
             
             # Withdraw other pending invitations
             RequestInvitation.objects.filter(
@@ -251,7 +309,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
             ).exclude(id=invitation.id).update(status='WITHDRAWN', responded_at=timezone.now())
             
             # Send assignment notification
-            send_assignment_notifications.delay(substitute_request.id)
+            # send_assignment_notifications.delay(substitute_request.id)
             
             return Response({"detail": "Request accepted successfully"})
         except RequestInvitation.DoesNotExist:
@@ -263,7 +321,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def decline_request(self, request, pk=None):
         """Decline a substitute request invitation"""
-        substitute_request = self.get_object()
+        substitute_request = get_object_or_404(SubstituteRequest, pk=pk)
         teacher = request.user
         response_note = request.data.get('response_note', '')
  
@@ -286,7 +344,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
         """
         Get detailed invitation history for a substitute request
         """
-        instance = self.get_object()
+        instance = get_object_or_404(SubstituteRequest, pk=pk)
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 

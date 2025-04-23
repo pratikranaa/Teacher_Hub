@@ -27,6 +27,7 @@ import { RejectedRequestsTable } from "./components/rejected-requests-table"
 import { CreatedRequestsTable } from "./components/created-requests-table"
 import { acceptSubstituteRequest, declineSubstituteRequest } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { TeacherNotificationCenter } from "./components/notification-center"
 
 const teacherUserData = {
   name: "Teacher1",
@@ -90,24 +91,6 @@ export default function Page() {
 
   useEffect(() => {
     fetchRequests()
-    
-    // Set up WebSocket connection to listen for new requests
-    const socket = new WebSocket(`wss://${BASE_API_URL}/ws/substitute-requests/`)
-    
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      if (data.type === "substitute.invitation") {
-        toast({
-          title: "New Substitute Request",
-          description: `You've been invited to teach ${data.content.subject} on ${data.content.date}`,
-        })
-        fetchRequests()
-      }
-    }
-    
-    return () => {
-      socket.close()
-    }
   }, [])
 
   const handleAcceptRequest = async (requestId) => {
@@ -151,11 +134,14 @@ export default function Page() {
       <SidebarLeft />
       <SidebarInset>
         <header className="sticky top-0 flex h-14 shrink-0 items-center gap-2 bg-background">
+          
           <div className="flex flex-1 items-center gap-2 px-3">
+
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
+              
                 <BreadcrumbItem>
                   <BreadcrumbPage className="line-clamp-1 text-3xl font-bold">
                     Teacher Hub
@@ -163,14 +149,21 @@ export default function Page() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+            <div className="flex-1" />
+            <TeacherNotificationCenter />
+          
+
+
           </div>
         </header>
         
         <div className="flex flex-1 flex-col gap-4 p-4">
+
           <div className="mx-auto w-full max-w-6xl rounded-xl bg-muted/5 p-6">
+            
             <div className="flex justify-between items-center mb-4">
               <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
-              
+               
               <Sheet>
                 <SheetTrigger asChild>
                   <Button variant="default">Create Request</Button>

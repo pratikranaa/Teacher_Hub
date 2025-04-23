@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bell, CheckCircle, Clock, Trash2 } from 'lucide-react'
+import { Bell, CheckCircle, Clock, Trash2, Filter } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -11,17 +11,32 @@ import { Badge } from '@/components/ui/badge'
 import { useWebSocket } from '@/contexts/websocket-service'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { format } from 'date-fns'
 
-export function TeacherNotificationCenter() {
+export function SchoolNotificationCenter() {
   const { notifications, unreadCount, markAsRead, clearNotifications } = useWebSocket()
   const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState('all')
   const router = useRouter()
 
-  // Group notifications by type
-  const invitationNotifications = notifications.filter(n => n.type === 'substitute_invitation')
+  // Group notifications by type relevant to school admin/principal
+  const requestNotifications = notifications.filter(n => n.type === 'substitute_request')
   const assignmentNotifications = notifications.filter(n => n.type === 'substitute_assigned')
-  const statusNotifications = notifications.filter(n => n.type === 'request_status_change')
+  const availabilityNotifications = notifications.filter(n => n.type === 'teacher_availability')
+  const schoolUpdateNotifications = notifications.filter(n => n.type === 'school_profile_updated')
+
+  // Apply priority filtering if needed
+  const filteredNotifications = filter === 'all' 
+    ? notifications
+    : filter === 'high' 
+      ? notifications.filter(n => n.data.priority === 'HIGH')
+      : notifications.filter(n => n.data.priority !== 'HIGH')
 
   const handleNotificationClick = (notification: any) => {
     // Mark as read
@@ -31,14 +46,17 @@ export function TeacherNotificationCenter() {
     
     // Navigate based on notification type
     switch(notification.type) {
-      case 'substitute_invitation':
-        router.push(`/dashboard-teacher/invitations/${notification.data.request_id}`)
+      case 'substitute_request':
+        router.push(`/dashboard-school/requests/${notification.data.request_id}`)
         break
       case 'substitute_assigned':
-        router.push(`/dashboard-teacher/assignments/${notification.data.request_id}`)
+        router.push(`/dashboard-school/requests/${notification.data.request_id}`)
         break
-      case 'request_status_change':
-        router.push(`/dashboard-teacher/my-requests/${notification.data.request_id}`)
+      case 'teacher_availability':
+        router.push(`/dashboard-school/teachers/${notification.data.teacher_id}`)
+        break
+      case 'school_profile_updated':
+        router.push('/dashboard-school/settings')
         break
       default:
         break
@@ -92,6 +110,9 @@ export function TeacherNotificationCenter() {
                   <p className="text-xs text-muted-foreground">
                     {formatTime(notification.createdAt)}
                   </p>
+                  {notification.data.priority === 'HIGH' && (
+                    <Badge variant="destructive" className="text-xs">High Priority</Badge>
+                  )}
                   {!notification.read && (
                     <Badge variant="outline" className="text-xs">New</Badge>
                   )}
@@ -118,8 +139,21 @@ export function TeacherNotificationCenter() {
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="end">
         <div className="flex items-center justify-between p-3 border-b">
-          <h4 className="font-semibold">Notifications</h4>
+          <h4 className="font-semibold">School Notifications</h4>
           <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setFilter('all')}>All</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter('high')}>High Priority</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter('normal')}>Normal Priority</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             {unreadCount > 0 && (
               <Button 
                 variant="ghost" 
@@ -140,28 +174,37 @@ export function TeacherNotificationCenter() {
         </div>
         
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="invitations">Invitations</TabsTrigger>
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
-            <TabsTrigger value="status">Updates</TabsTrigger>
+            <TabsTrigger value="requests">Requests</TabsTrigger>
+            <TabsTrigger value="assignments">Assigned</TabsTrigger>
+            <TabsTrigger value="availability">Availability</TabsTrigger>
+            <TabsTrigger value="updates">Updates</TabsTrigger>
           </TabsList>
           
           <ScrollArea className="h-[400px]">
             <TabsContent value="all" className="mt-0">
-              {renderNotificationList(notifications)}
+              {renderNotificationList(filteredNotifications)}
             </TabsContent>
             
-            <TabsContent value="invitations" className="mt-0">
-              {renderNotificationList(invitationNotifications)}
+            <TabsContent value="requests" className="mt-0">
+              {renderNotificationList(requestNotifications.filter(n => 
+                filter === 'all' || (filter === 'high' ? n.data.priority === 'HIGH' : n.data.priority !== 'HIGH')
+              ))}
             </TabsContent>
             
             <TabsContent value="assignments" className="mt-0">
-              {renderNotificationList(assignmentNotifications)}
+              {renderNotificationList(assignmentNotifications.filter(n => 
+                filter === 'all' || (filter === 'high' ? n.data.priority === 'HIGH' : n.data.priority !== 'HIGH')
+              ))}
             </TabsContent>
             
-            <TabsContent value="status" className="mt-0">
-              {renderNotificationList(statusNotifications)}
+            <TabsContent value="availability" className="mt-0">
+              {renderNotificationList(availabilityNotifications)}
+            </TabsContent>
+            
+            <TabsContent value="updates" className="mt-0">
+              {renderNotificationList(schoolUpdateNotifications)}
             </TabsContent>
           </ScrollArea>
         </Tabs>

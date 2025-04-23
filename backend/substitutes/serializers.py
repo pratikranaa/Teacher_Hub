@@ -175,4 +175,11 @@ class SubstituteRequestSerializer(serializers.ModelSerializer):
         model = SubstituteRequest
         fields = '__all__'
         
+# Add notification serializer
+from rest_framework import serializers
+from .models import Notification
 
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'content', 'notification_type', 'is_read', 'timestamp']

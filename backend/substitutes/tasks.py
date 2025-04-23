@@ -6,7 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from .models import SubstituteRequest, RequestInvitation, TeacherAvailability
+from .models import SubstituteRequest, RequestInvitation, TeacherAvailability, Notification
 from accounts.models import User, School, SchoolStaff
 from accounts.models import TeacherProfile
 from accounts.utils import send_email as send
@@ -221,7 +221,7 @@ def send_teacher_email(invitation_id):
         You have been invited for a substitute teaching request.
         
         Details:
-        School: {request.school}
+        School: {request.school.school_name}
         Subject: {request.subject}
         Grade: {request.grade}
         Date: {request.date}
@@ -234,7 +234,7 @@ def send_teacher_email(invitation_id):
         Please respond within 10 minutes.
         
         Best regards,
-        {request.school}
+        {request.school.school_name} Team
         """
         
         print(f"Sending email to: {teacher.email}")
@@ -277,7 +277,10 @@ def notify_teacher(invitation):
             "content": {
                 "invitation_id": str(invitation.id),
                 "request_id": str(request.id),
-                "school": request.school,
+                "school": {
+                    "id": str(request.school.id),
+                    "name": request.school.school_name  # Assuming `name` is a field on School
+                },
                 "subject": request.subject,
                 "grade": request.grade,
                 "date": str(request.date),
@@ -295,10 +298,13 @@ def notify_teacher(invitation):
         traceback.print_exc()
 
 @shared_task
-def send_assignment_notification(request_id):
+def send_assignment_notifications(request_id):
     """Send notifications when a request is accepted"""
     try:
         request = SubstituteRequest.objects.get(id=request_id)
+        
+        if not request.assigned_teacher:
+            return "No assigned teacher found"
         
         # Prepare notification content
         content = {
@@ -309,7 +315,9 @@ def send_assignment_notification(request_id):
                 "grade": request.grade,
                 "date": str(request.date),
                 "time": f"{request.start_time} - {request.end_time}",
-                "teacher": request.assigned_teacher.get_full_name()
+                "teacher": request.assigned_teacher.get_full_name(),
+                "priority": request.priority,
+                "created_at": timezone.now().isoformat()
             }
         }
         
@@ -317,21 +325,66 @@ def send_assignment_notification(request_id):
         
         # Notify all relevant parties
         notifications = [
+            # Assigned teacher notification
             (f"user_{request.assigned_teacher.id}", "You have been assigned"),
-            (f"user_{request.original_teacher.id}", "A substitute has been assigned"),
+            
+            # Original teacher notification (if different)
+            (f"user_{request.requested_by.id}", "A substitute has been assigned"),
+            
+            # School staff notifications
             (f"school_{request.school.id}_admin", "Substitute has been assigned"),
             (f"school_{request.school.id}_principal", "Substitute has been assigned")
         ]
         
         for group, message in notifications:
+            # Skip if sending to assigned teacher who is also the requesting teacher
+            if group == f"user_{request.requested_by.id}" and request.assigned_teacher == request.requested_by:
+                continue
+                
             content["content"]["message"] = message
             async_to_sync(channel_layer.group_send)(group, content)
+        
+        # Create database notification for each recipient
+        Notification.objects.create(
+            user=request.assigned_teacher,
+            content=f"You've been assigned to teach {request.subject} on {request.date}",
+            notification_type='ASSIGNMENT'
+        )
+        
+        if request.requested_by != request.assigned_teacher:
+            Notification.objects.create(
+                user=request.requested_by,
+                content=f"{request.assigned_teacher.get_full_name()} has been assigned to your request for {request.subject}",
+                notification_type='ASSIGNMENT'
+            )
+        
+        # Create notifications for school staff
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        school_staff = User.objects.filter(
+            school_staff__school=request.school,
+            school_staff__role__in=['ADMIN', 'PRINCIPAL']
+        )
+        
+        for staff in school_staff:
+            Notification.objects.create(
+                user=staff,
+                content=f"{request.assigned_teacher.get_full_name()} has been assigned to teach {request.subject} on {request.date}",
+                notification_type='ASSIGNMENT'
+            )
             
         # Send confirmation email to assigned teacher
         send_confirmation_email.delay(request_id)
         
+        return "Notifications sent successfully"
+        
     except SubstituteRequest.DoesNotExist:
-        return
+        return "Request not found"
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}"
 
 @shared_task
 def send_confirmation_email(request_id):
@@ -348,7 +401,7 @@ def send_confirmation_email(request_id):
         Your substitute teaching assignment has been confirmed.
         
         Details:
-        School: {request.school}
+        School: {request.school.school_name}
         Subject: {request.subject}
         Grade: {request.grade}
         Date: {request.date}
@@ -359,7 +412,7 @@ def send_confirmation_email(request_id):
         Special Instructions: {request.special_instructions}
         
         Best regards,
-        {request.school}
+        {request.school.school_name} Team
         """
         
         send(

@@ -27,9 +27,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AuthProvider>
-          {/* <WebSocketProvider> */}
+          <WebSocketProvider>
           {children}
-          {/* </WebSocketProvider> */}
+          </WebSocketProvider>
         </AuthProvider>
       </body>
     </html>

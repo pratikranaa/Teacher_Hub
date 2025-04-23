@@ -313,5 +313,12 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
     notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
     
+    class meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+            models.Index(fields=['notification_type']),
+        ]
+    
     def __str__(self):
         return f"{self.user.username} - {self.notification_type}"

@@ -3,6 +3,8 @@ from rest_framework import serializers
 from .models import TeachingSession, SessionRecording, SessionReport
 from accounts.models import User
 
+User 
+
 class AddStudentSerializer(serializers.Serializer):
     student_id = serializers.UUIDField()
 

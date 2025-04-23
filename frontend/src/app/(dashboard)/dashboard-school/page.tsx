@@ -28,6 +28,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { SchoolNotificationCenter } from "./components/notification-center-school";
+
 
 export default function Page() {
   const [requests, setRequests] = useState([
@@ -162,8 +164,12 @@ export default function Page() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-          </div>
+            <div className="flex-1" />
+              <SchoolNotificationCenter />
         </header>
+
+
+        
         <div className="flex flex-1 flex-col gap-4 p-4 ">
           <div className="mx-auto h-[100vh] w-full max-w-3xl rounded-xl bg-muted/5 space-y-5 p-4">
             <h1 className="text-2xl font-bold">School Admin Dashboard</h1>
