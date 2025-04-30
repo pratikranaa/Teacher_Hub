@@ -103,7 +103,7 @@ class SubstituteRequestCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'school', 'requested_by', 'created_at', 'updated_at']        
     def create(self, validated_data):
         user = self.context['request'].user
-        
+        print("User:", user)
         # Get school based on user type
         if user.user_type in ['SCHOOL_ADMIN', 'INTERNAL_TEACHER', 'PRINCIPAL']:
             school = user.school_staff.school

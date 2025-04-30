@@ -11,8 +11,138 @@ from accounts.models import User, School, SchoolStaff
 from accounts.models import TeacherProfile
 from accounts.utils import send_email as send
 
+# Import improved email utilities
+import logging
+import time
+import random
+import json
+import subprocess
+import os
+import sys
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 BATCH_SIZE = 10  # Number of teachers per batch
 WAIT_TIME = 10 * 60  # 10 minutes in seconds
+
+# Maximum retry attempts for email sending
+MAX_EMAIL_RETRIES = 3
+
+# Exponential backoff settings for retries
+INITIAL_RETRY_DELAY = 2  # seconds
+MAX_RETRY_DELAY = 30  # seconds
+
+# Path to the standalone email script
+EMAIL_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'send_email_cli.py')
+
+# Helper function for exponential backoff
+def get_retry_delay(attempt):
+    """Calculate delay with exponential backoff and jitter"""
+    delay = min(INITIAL_RETRY_DELAY * (2 ** attempt), MAX_RETRY_DELAY)
+    jitter = random.uniform(0, 0.3 * delay)  # Add up to 30% jitter
+    return delay + jitter
+
+# Emergency direct email function that bypasses all abstractions
+def send_emergency_email(to_email, subject, body, from_email=None):
+    """
+    Emergency direct email function that uses smtplib directly with no dependencies
+    This is a last resort when all other approaches fail
+    """
+    print(f"🚨 EMERGENCY EMAIL SYSTEM: Sending to {to_email}")
+    
+    # Use environment variables directly
+    email_host = settings.EMAIL_HOST
+    email_port = settings.EMAIL_PORT
+    email_user = settings.EMAIL_HOST_USER
+    email_password = settings.EMAIL_HOST_PASSWORD
+    email_use_tls = settings.EMAIL_USE_TLS
+    
+    if from_email is None:
+        from_email = email_user
+    
+    # Create message
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    for attempt in range(3):  # Try 3 times
+        try:
+            print(f"Attempt {attempt+1}: Connecting to {email_host}:{email_port}...")
+            server = smtplib.SMTP(email_host, email_port, timeout=30)
+            
+            if email_use_tls:
+                print("Starting TLS...")
+                server.starttls()
+                
+            print(f"Logging in as {email_user}...")
+            server.login(email_user, email_password)
+            
+            print(f"Sending email to {to_email}...")
+            server.send_message(msg)
+            
+            print("Closing connection...")
+            server.quit()
+            
+            print(f"✅ Emergency email sent successfully to {to_email}!")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Emergency email error (attempt {attempt+1}): {type(e).__name__}: {str(e)}")
+            
+            if attempt < 2:  # Only sleep if we're going to retry
+                delay = 2 ** attempt
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+    
+    print(f"❌ Failed to send emergency email to {to_email} after 3 attempts")
+    return False
+
+# New helper function to send emails using the standalone script
+def send_email_via_script(to_email, subject, body, from_email=None):
+    """
+    Send an email using the standalone email script
+    This completely bypasses Django's email system for more reliability
+    """
+    try:
+        email_data = {
+            "to": to_email,
+            "subject": subject,
+            "body": body,
+            "retries": 3
+        }
+        
+        if from_email:
+            email_data["from"] = from_email
+            
+        # Convert data to JSON
+        json_data = json.dumps(email_data)
+        
+        # Run the standalone script with the JSON data
+        logger.info(f"Sending email to {to_email} via standalone script")
+        result = subprocess.run(
+            [sys.executable, EMAIL_SCRIPT_PATH, "--json", json_data],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        # Log the result
+        if result.returncode == 0:
+            logger.info(f"Email sent successfully to {to_email}")
+            return True
+        else:
+            logger.error(f"Failed to send email to {to_email}: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        logger.exception(f"Error executing email script: {str(e)}")
+        return False
 
 @shared_task
 def match_teachers_to_request(request_id):
@@ -142,7 +272,60 @@ def process_teacher_batch(request, teachers, batch_number):
             notify_teacher(invitation)
             
             print(f"Queueing email notification for teacher {teacher.teacher.email}")
-            send_teacher_email.delay(invitation.id)
+            
+            # IMPORTANT CHANGE: Instead of queueing a task, send email directly
+            # This bypasses the Celery task and connection pooling entirely
+            try:
+                # Get frontend URL from settings, with fallback
+                frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+                
+                # Prepare email content
+                subject = f"Substitute Teaching Request - {request.subject}"
+                accept_url = f"{frontend_url}/accept-request/{invitation.id}"
+                decline_url = f"{frontend_url}/decline-request/{invitation.id}"
+                
+                message = f"""
+Dear {teacher.teacher.get_full_name()},
+
+You have been invited for a substitute teaching request.
+
+Details:
+School: {request.school.school_name}
+Subject: {request.subject}
+Grade: {request.grade}
+Date: {request.date}
+Time: {request.start_time} - {request.end_time}
+
+To respond to this request:
+Accept: {accept_url}
+Decline: {decline_url}
+
+Please respond within 10 minutes.
+
+Best regards,
+{request.school.school_name} Team
+"""
+                
+                from_email = f"{request.school.school_name} <{settings.EMAIL_HOST_USER}>"
+                
+                # Try sending directly using our emergency function
+                success = send_emergency_email(
+                    teacher.teacher.email,
+                    subject,
+                    message,
+                    from_email
+                )
+                
+                if success:
+                    print(f"✅ Email sent directly to {teacher.teacher.email}")
+                else:
+                    # As a fallback, also queue the regular email task in case direct sending fails
+                    send_teacher_email.delay(invitation.id)
+            except Exception as email_error:
+                print(f"Error sending direct email: {str(email_error)}")
+                # Still queue the task as a backup
+                send_teacher_email.delay(invitation.id)
+            
         except Exception as e:
             print(f"Error processing teacher {teacher.teacher.email}: {str(e)}")
 
@@ -204,8 +387,9 @@ def notify_school_staff(request):
 # In substitutes/tasks.py
 @shared_task
 def send_teacher_email(invitation_id):
-    """Send email notification to invited teacher"""
-    print(f"Starting email notification task for invitation: {invitation_id}")
+    """Send email notification to invited teacher using standalone script"""
+    logger.info(f"Starting email notification task for invitation: {invitation_id}")
+    
     try:
         invitation = RequestInvitation.objects.get(id=invitation_id)
         request = invitation.substitute_request
@@ -216,51 +400,52 @@ def send_teacher_email(invitation_id):
         decline_url = f"{settings.FRONTEND_URL}/decline-request/{invitation.id}"
         
         message = f"""
-        Dear {teacher.get_full_name()},
+Dear {teacher.get_full_name()},
+
+You have been invited for a substitute teaching request.
+
+Details:
+School: {request.school.school_name}
+Subject: {request.subject}
+Grade: {request.grade}
+Date: {request.date}
+Time: {request.start_time} - {request.end_time}
+
+To respond to this request:
+Accept: {accept_url}
+Decline: {decline_url}
+
+Please respond within 10 minutes.
+
+Best regards,
+{request.school.school_name} Team
+"""
         
-        You have been invited for a substitute teaching request.
+        logger.info(f"Sending email to: {teacher.email}")
         
-        Details:
-        School: {request.school.school_name}
-        Subject: {request.subject}
-        Grade: {request.grade}
-        Date: {request.date}
-        Time: {request.start_time} - {request.end_time}
+        # Use standalone script instead of Django email
+        from_email = f"{request.school.school_name} <pratikrana507@gmail.com>"
+        success = send_email_via_script(
+            teacher.email,
+            subject,
+            message,
+            from_email
+        )
         
-        To respond to this request:
-        Accept: {accept_url}
-        Decline: {decline_url}
-        
-        Please respond within 10 minutes.
-        
-        Best regards,
-        {request.school.school_name} Team
-        """
-        
-        print(f"Sending email to: {teacher.email}")
-        print(f"Email subject: {subject}")
-        
-        try:
-            send(
-                subject,
-                message,
-                "pratikrana507@gmail.com",  # Your demo email
-                # settings.DEFAULT_FROM_EMAIL
-            )
-            print(f"Email sent to {teacher.email}")
-        except Exception as mail_error:
-            print(f"Failed to send email (delivery will be attempted later): {str(mail_error)}")
-            # Log the email content to console for development purposes
-            print("Email content that would be sent:")
-            print(f"Subject: {subject}")
-            print(f"Message: {message}")
-            
+        if success:
+            logger.info(f"✅ Email successfully sent to {teacher.email}")
+            return f"Email sent successfully to {teacher.email}"
+        else:
+            logger.error(f"❌ Failed to send email to {teacher.email}")
+            return f"Failed to send email to {teacher.email}"
+                
     except RequestInvitation.DoesNotExist:
-        print(f"Invitation {invitation_id} not found!")
+        logger.error(f"Invitation {invitation_id} not found!")
+        return f"Invitation {invitation_id} not found"
+        
     except Exception as e:
-        print(f"Error preparing email: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error preparing email: {str(e)}")
+        return f"Error preparing email: {str(e)}"
 
 # In substitutes/tasks.py
 def notify_teacher(invitation):
@@ -388,39 +573,57 @@ def send_assignment_notifications(request_id):
 
 @shared_task
 def send_confirmation_email(request_id):
-    """Send confirmation email to assigned teacher"""
+    """Send confirmation email to assigned teacher with improved reliability"""
+    logger.info(f"Sending confirmation email for request: {request_id}")
+    
     try:
         request = SubstituteRequest.objects.get(id=request_id)
         teacher = request.assigned_teacher
         
-        # Fix school name references
         subject = f"Confirmation: Substitute Teaching Assignment - {request.subject}"
         message = f"""
-        Dear {teacher.get_full_name()},
+Dear {teacher.get_full_name()},
+
+Your substitute teaching assignment has been confirmed.
+
+Details:
+School: {request.school.school_name}
+Subject: {request.subject}
+Grade: {request.grade}
+Date: {request.date}
+Time: {request.start_time} - {request.end_time}
+
+Additional Information:
+Guest Meeting Link: {request.meeting_link if request.mode == 'ONLINE' else 'N/A'}
+Host Meeting Link: {request.host_link if request.mode == 'ONLINE' else 'N/A'}
+Special Instructions: {request.special_instructions}
+
+Best regards,
+{request.school.school_name} Team
+"""
         
-        Your substitute teaching assignment has been confirmed.
+        logger.info(f"Sending confirmation email to: {teacher.email}")
         
-        Details:
-        School: {request.school.school_name}
-        Subject: {request.subject}
-        Grade: {request.grade}
-        Date: {request.date}
-        Time: {request.start_time} - {request.end_time}
-        
-        Additional Information:
-        Guest Meeting Link: {request.meeting_link if request.mode == 'ONLINE' else 'N/A'}
-        Host Meeting Link: {request.host_link if request.mode == 'ONLINE' else 'N/A'}
-        Special Instructions: {request.special_instructions}
-        
-        Best regards,
-        {request.school.school_name} Team
-        """
-        
-        send(
+        # Use standalone script instead of Django email
+        from_email = f"{request.school.school_name} <pratikrana507@gmail.com>"
+        success = send_email_via_script(
+            teacher.email,
             subject,
             message,
-            "pratikrana507@gmail.com",  # Your demo email
-            # settings.DEFAULT_FROM_EMAIL
+            from_email
         )
+        
+        if success:
+            logger.info(f"✅ Confirmation email successfully sent to {teacher.email}")
+            return f"Confirmation email sent successfully to {teacher.email}"
+        else:
+            logger.error(f"❌ Failed to send confirmation email to {teacher.email}")
+            return f"Failed to send confirmation email to {teacher.email}"
+                
     except SubstituteRequest.DoesNotExist:
-        return
+        logger.error(f"Request {request_id} not found!")
+        return f"Request {request_id} not found"
+        
+    except Exception as e:
+        logger.error(f"Error preparing confirmation email: {str(e)}")
+        return f"Error preparing confirmation email: {str(e)}"

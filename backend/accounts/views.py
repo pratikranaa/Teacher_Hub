@@ -803,6 +803,23 @@ class UpdateAvailabilityView(APIView):
 class SchoolAlgorithmSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get_school(self, user):
+        """Helper method to get school for a user"""
+        try:
+            # Try direct school association first (for school admin)
+            if user.user_type == 'SCHOOL_ADMIN':
+                school = School.objects.filter(user=user).first()
+                if school:
+                    return school
+            
+            # If user is principal or staff, get through school_staff
+            if hasattr(user, 'school_staff'):
+                return user.school_staff.school
+            
+            return None
+        except (School.DoesNotExist, AttributeError):
+            return None
+
     def get(self, request):
         if request.user.user_type != 'SCHOOL_ADMIN':
             return Response(
@@ -810,14 +827,14 @@ class SchoolAlgorithmSettingsView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        try:
-            school = School.objects.get(user=request.user)
-            return Response(school.get_algorithm_settings)
-        except School.DoesNotExist:
+        school = self.get_school(request.user)
+        if not school:
             return Response(
                 {"error": "School not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        return Response(school.get_algorithm_settings())
 
     def put(self, request):
         if request.user.user_type != 'SCHOOL_ADMIN':
@@ -826,22 +843,21 @@ class SchoolAlgorithmSettingsView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        try:
-            school = School.objects.get(user=request.user)
-            serializer = AlgorithmSettingsSerializer(data=request.data)
-            
-            if serializer.is_valid():
-                school.matching_algorithm_settings = serializer.validated_data
-                school.save()
-                return Response(school.get_algorithm_settings)
-            
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            
-        except School.DoesNotExist:
+        school = self.get_school(request.user)
+        if not school:
             return Response(
                 {"error": "School not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
+            
+        serializer = AlgorithmSettingsSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            school.matching_algorithm_settings = serializer.validated_data
+            school.save()
+            return Response(school.get_algorithm_settings())
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
             
 

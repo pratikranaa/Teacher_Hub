@@ -223,7 +223,7 @@ export default function AccountPage() {
   // Function to update algorithm settings (for school admin)
   const updateAlgorithmSettings = async (settings: any) => {
     try {
-      const response = await fetch(`${BASE_API_URL}/api/schools/algorithm-settings/`, {
+      const response = await fetch(`${BASE_API_URL}/api/school/algorithm-settings/`, {
         method: 'PUT',
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("accessToken")}`,

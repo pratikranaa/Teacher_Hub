@@ -49,6 +49,7 @@ export function SidebarRight({
     
     // Display logout success notification
     toast({
+      variant: "destructive",
       title: "Logged out successfully",
       description: "You have been logged out of your account.",
     })
