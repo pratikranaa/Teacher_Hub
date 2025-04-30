@@ -834,7 +834,8 @@ class SchoolAlgorithmSettingsView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        return Response(school.get_algorithm_settings())
+        # Fixed: Access get_algorithm_settings as a property, not a function
+        return Response(school.get_algorithm_settings)
 
     def put(self, request):
         if request.user.user_type != 'SCHOOL_ADMIN':
@@ -855,7 +856,8 @@ class SchoolAlgorithmSettingsView(APIView):
         if serializer.is_valid():
             school.matching_algorithm_settings = serializer.validated_data
             school.save()
-            return Response(school.get_algorithm_settings())
+            # Fixed: Access get_algorithm_settings as a property, not a function
+            return Response(school.get_algorithm_settings)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
