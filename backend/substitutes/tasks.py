@@ -408,7 +408,8 @@ def send_confirmation_email(request_id):
         Time: {request.start_time} - {request.end_time}
         
         Additional Information:
-        Meeting Link: {request.meeting_link if request.mode == 'ONLINE' else 'N/A'}
+        Guest Meeting Link: {request.meeting_link if request.mode == 'ONLINE' else 'N/A'}
+        Host Meeting Link: {request.host_link if request.mode == 'ONLINE' else 'N/A'}
         Special Instructions: {request.special_instructions}
         
         Best regards,

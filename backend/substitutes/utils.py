@@ -26,25 +26,37 @@ def create_jiomeet_meeting(name, title, description):
     
     token = token_generator_jiomeet()
     
-
     payload = json.dumps({
-    "name": name,
-    "title": title,
-    "description": description,
-    "hostToken": False,
-    "isAutoRecordingEnabled": True  # Set to True to enable auto-recording
-
+        "name": name,
+        "title": title,
+        "description": description,
+        "hostToken": True,  # Ensure this is True to get the host token
+        "isAutoRecordingEnabled": True
     })
+    
     headers = {
-    'Content-Type': 'application/json',
-    "Authorization": f"Bearer {token}"  # Add the generated JWT
+        'Content-Type': 'application/json',
+        "Authorization": f"Bearer {token}"
     }
 
     response = requests.request("POST", url, headers=headers, data=payload)
 
     if response.status_code == 200:
+        data = response.json()
         print("Meeting created successfully!")
-        return response.json()
+        
+        # Extract guest meeting link and create host link
+        guest_link = data.get('guestMeetingLink') or data.get('meetingLink')
+        host_token = data.get('hostToken', '')
+        
+        # Create host link by appending hostToken to the guest link
+        if guest_link and host_token:
+            # Check if the URL already has parameters
+            separator = '&' if '?' in guest_link else '?'
+            host_link = f"{guest_link}{separator}hostToken={host_token}"
+            data['host_link'] = host_link
+            
+        return data
     else:
         print(f"Failed to create meeting. Status code: {response.status_code}")
         return response.text

@@ -147,6 +147,7 @@ class SubstituteRequest(models.Model):
         help_text="Specific requirements for the substitute teacher", blank=True
     )
     meeting_link = models.URLField(null=True, blank=True)
+    host_link = models.URLField(null=True, blank=True)
     special_instructions = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -184,6 +185,7 @@ class SubstituteRequest(models.Model):
         response_meeting = create_jiomeet_meeting(name, title, description)
         if 'meetingLink' in response_meeting:
             self.meeting_link = response_meeting['meetingLink']
+            self.host_link = response_meeting['host_link']
         else:
             self.meeting_link = 'Please check with the School_Admin for meeting link'
 

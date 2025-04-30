@@ -95,14 +95,13 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
             except AttributeError:
                 return SubstituteRequest.objects.none()
         
-        # Internal teachers see requests they created
-        elif user.user_type == 'INTERNAL_TEACHER':
-            return SubstituteRequest.objects.filter(requested_by=user)
-        
-        # Substitute teachers see requests they were invited to
+        # For teachers, combine multiple conditions with OR
         elif user.user_type in ['EXTERNAL_TEACHER', 'INTERNAL_TEACHER']:
+            from django.db.models import Q
             return SubstituteRequest.objects.filter(
-                invitations__teacher=user
+                # Creator OR assigned
+                Q(requested_by=user) | 
+                Q(assigned_teacher=user)
             ).distinct()
         
         # Default case
@@ -236,10 +235,12 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
+    
     def retrieve(self, request, *args, **kwargs):
         """
         Retrieve a specific substitute request
         """
+        
         instance = self.get_object()
         serializer = SubstituteRequestDetailSerializer(instance)
         return Response(serializer.data)

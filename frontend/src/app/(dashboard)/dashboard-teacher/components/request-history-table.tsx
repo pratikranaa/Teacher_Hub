@@ -1,29 +1,61 @@
 "use client"
 
-import { useState } from "react"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import { Button } from "@/components/ui/button"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
+import { useState, useEffect } from "react"
+import { BASE_API_URL } from "@/lib/config"
+import { ExternalLink, Loader2 } from "lucide-react" 
 
 export function RequestHistoryTable({ data, isLoading }) {
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const itemsPerPage = 5
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(data.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedData = data.slice(startIndex, startIndex + itemsPerPage)
+
+  // Fetch request details when a request is selected
+  const fetchRequestDetails = async (requestId) => {
+    setDetailLoading(true)
+    try {
+      const token = localStorage.getItem("accessToken")
+      const response = await fetch(`${BASE_API_URL}/api/substitute-requests/${requestId}/`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch request details")
+      }
+      
+      const detailData = await response.json()
+      console.log("Request details fetched successfully:", detailData)
+      setSelectedRequest(detailData)
+    } catch (error) {
+      console.error("Error fetching request details:", error)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  // Clear selected request when sheet closes
+  useEffect(() => {
+    if (!sheetOpen) {
+      setSelectedRequest(null)
+    }
+  }, [sheetOpen])
   
   if (isLoading) {
     return <LoadingSkeleton />
@@ -37,11 +69,6 @@ export function RequestHistoryTable({ data, isLoading }) {
       </div>
     )
   }
-
-  // Calculate pagination
-  const totalPages = Math.ceil(data.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedData = data.slice(startIndex, startIndex + itemsPerPage)
   
   return (
     <div>
@@ -55,6 +82,7 @@ export function RequestHistoryTable({ data, isLoading }) {
             <TableHead>School</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Mode</TableHead>
+            <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -72,7 +100,7 @@ export function RequestHistoryTable({ data, isLoading }) {
                 <TableCell>{request.grade}</TableCell>
                 <TableCell>{new Date(request.date).toLocaleDateString()}</TableCell>
                 <TableCell>{`${request.start_time} - ${request.end_time}`}</TableCell>
-                <TableCell>{request.school.name}</TableCell>
+                <TableCell>{request.school?.name}</TableCell>
                 <TableCell>
                   <StatusBadge status={status} />
                 </TableCell>
@@ -80,6 +108,138 @@ export function RequestHistoryTable({ data, isLoading }) {
                   <Badge variant={request.mode === 'ONLINE' ? 'outline' : 'secondary'}>
                     {request.mode}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                    <SheetTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fetchRequestDetails(request.id)}
+                      >
+                        View Details
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent className="sm:max-w-md overflow-hidden flex flex-col">
+                      <SheetHeader>
+                        <SheetTitle>Request Details</SheetTitle>
+                        <SheetDescription>
+                          View comprehensive information about this substitute request
+                        </SheetDescription>
+                      </SheetHeader>
+                      
+                      {detailLoading && (
+                        <div className="flex justify-center items-center h-40">
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                        </div>
+                      )}
+                      
+                      {!detailLoading && selectedRequest && (
+                        <div className="overflow-y-auto flex-1 pr-2 -mr-2">
+                          <div className="py-6 space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Request ID</p>
+                                <p>{selectedRequest.id}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Status</p>
+                                <StatusBadge status={selectedRequest.status} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Date</p>
+                                <p>{selectedRequest.date}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Time</p>
+                                <p>{selectedRequest.start_time} - {selectedRequest.end_time}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Subject</p>
+                                <p>{selectedRequest.subject}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Grade & Section</p>
+                                <p>{selectedRequest.grade} {selectedRequest.section}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Mode</p>
+                                <p>{selectedRequest.mode}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Priority</p>
+                                <p>{selectedRequest.priority}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Meeting Link & Host Link Section */}
+                            {selectedRequest.status === "ASSIGNED" && (
+                              <div className="pt-2 border-t">
+                                {selectedRequest.meeting_link && (
+                                  <div className="mb-4">
+                                    <p className="text-sm font-medium text-gray-500">Meeting Link (For Students/Guests)</p>
+                                    <div className="mt-1 flex items-center">
+                                      <a 
+                                        href={selectedRequest.meeting_link} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline flex items-center"
+                                      >
+                                        {selectedRequest.meeting_link}
+                                        <ExternalLink className="h-3 w-3 ml-1" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {selectedRequest.host_link && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Host Link (For Teacher)</p>
+                                    <div className="mt-1 flex items-center">
+                                      <a 
+                                        href={selectedRequest.host_link} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-green-600 hover:underline flex items-center font-medium"
+                                      >
+                                        Join as Host
+                                        <ExternalLink className="h-3 w-3 ml-1" />
+                                      </a>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="ml-2"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(selectedRequest.host_link);
+                                          // You may want to add a toast notification here
+                                        }}
+                                      >
+                                        Copy
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {selectedRequest.description && (
+                              <div className="pt-2 border-t">
+                                <p className="text-sm font-medium text-gray-500">Description</p>
+                                <p className="mt-1">{selectedRequest.description}</p>
+                              </div>
+                            )}
+                            
+                            {selectedRequest.requirements && (
+                              <div className="pt-2 border-t">
+                                <p className="text-sm font-medium text-gray-500">Requirements</p>
+                                <p className="mt-1">{selectedRequest.requirements}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </SheetContent>
+                  </Sheet>
                 </TableCell>
               </TableRow>
             )

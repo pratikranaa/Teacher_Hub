@@ -174,7 +174,7 @@ export default function Page() {
               <TabsList className="mb-4">
               <TabsTrigger value="created">Created Requests</TabsTrigger>
                 <TabsTrigger value="pending">Pending Requests</TabsTrigger>
-                <TabsTrigger value="history">Request History</TabsTrigger>
+                <TabsTrigger value="history">Accepted Requests</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected Requests</TabsTrigger>
               </TabsList>
 

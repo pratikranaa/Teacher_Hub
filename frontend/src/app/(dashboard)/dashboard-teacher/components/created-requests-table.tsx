@@ -263,8 +263,59 @@ export function CreatedRequestsTable({ data, isLoading, onRefresh }) {
                           </p>
                         </div>
                       )}
-
-                      {selectedRequest.meeting_link && (
+                      
+                      {/* Meeting Link & Host Link Section */}
+                      {selectedRequest.status === "ASSIGNED" && (
+                        <div className="pt-2 border-t">
+                          {selectedRequest.meeting_link && (
+                            <div className="mb-4">
+                              <p className="text-sm font-medium text-gray-500">Meeting Link (For Students/Guests)</p>
+                              <div className="mt-1 flex items-center">
+                                <a 
+                                  href={selectedRequest.meeting_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline flex items-center"
+                                >
+                                  {selectedRequest.meeting_link}
+                                  <ExternalLink className="h-3 w-3 ml-1" />
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {selectedRequest.host_link && (
+                            <div>
+                              <p className="text-sm font-medium text-gray-500">Host Link (For Teacher)</p>
+                              <div className="mt-1 flex items-center">
+                                <a 
+                                  href={selectedRequest.host_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-green-600 hover:underline flex items-center font-medium"
+                                >
+                                  Join as Host
+                                  <ExternalLink className="h-3 w-3 ml-1" />
+                                </a>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="ml-2"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(selectedRequest.host_link);
+                                    // You may want to add a toast notification here
+                                  }}
+                                >
+                                  Copy
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Keep the existing meeting_link section for non-assigned statuses */}
+                      {selectedRequest.status !== "ASSIGNED" && selectedRequest.meeting_link && (
                         <div className="pt-2 border-t">
                           <p className="text-sm font-medium text-gray-500">Meeting Link</p>
                           <div className="mt-1 flex items-center">
