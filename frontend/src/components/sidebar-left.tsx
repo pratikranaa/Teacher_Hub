@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import {
   AudioWaveform,
   Blocks,
@@ -33,58 +34,55 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-// This is sample data.
-const data = {
-  teams: [
-    {
-      name: "Teacher Hub",
-      logo: Command,
-      plan: "Enterprise",
-    },
-  ],
-  navMain: [
-    {
-      title: "Home",
-      url: "/dashboard",
-      icon: Home,
-      isActive: (window.location.pathname === "/dashboard-teacher" || window.location.pathname === "/dashboard" || window.location.pathname === "/dashboard-school" ) ? true : false,
-    },
-    {
-      title: "My Profile",
-      url: "/account",
-      icon: User,
-      isActive: (window.location.pathname === "/account") ? true : false,
-    },
-    // {
-    //   title: "Request Substitute",
-    //   url: "#",
-    //   icon: Plus,
-    // },
-    {
-      title: "Session History",
-      url: "/history",
-      icon: Clock,
-      badge: "10",
-      isActive: (window.location.pathname === "/history") ? true : false,
-    },
-    {
-      title: "External Recordings",
-      url: "/external-recordings",
-      icon: AudioWaveform,
-      isActive: (window.location.pathname === "/external-recordings") ? true : false,
-    },
-  ],
-  navSecondary: [
-  ],
-  favorites: [
-  ],
-  workspaces: [
-  ],
-}
 
 export function SidebarLeft({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+
+  // This is sample data with dynamic isActive based on current path
+  const data = {
+    teams: [
+      {
+        name: "Teacher Hub",
+        logo: Command,
+        plan: "Enterprise",
+      },
+    ],
+    navMain: [
+      {
+        title: "Home",
+        url: "/dashboard",
+        icon: Home,
+        isActive: pathname === "/dashboard-teacher" || pathname === "/dashboard" || pathname === "/dashboard-school",
+      },
+      {
+        title: "My Profile",
+        url: "/account",
+        icon: User,
+        isActive: pathname === "/account",
+      },
+      // {
+      //   title: "Request Substitute",
+      //   url: "#",
+      //   icon: Plus,
+      // },
+      {
+        title: "Session History",
+        url: "/history",
+        icon: Clock,
+        badge: "10",
+        isActive: pathname === "/history",
+      },
+    ],
+    navSecondary: [
+    ],
+    favorites: [
+    ],
+    workspaces: [
+    ],
+  }
+
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>

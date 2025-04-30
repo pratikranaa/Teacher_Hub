@@ -50,6 +50,7 @@ export function LoginForm({
       }));
 
       toast({
+        variant: "success",
         title: "Login successful",
         description: "You have been successfully logged in.",
       });

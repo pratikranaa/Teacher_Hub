@@ -297,18 +297,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = [
-            'id', 
-            'username', 
-            'email', 
-            'phone_number',
-            'user_type',
-            'profile_image',
-            'teacher_profile',
-            'school_profile',
-            'student_profile'
-            'school_staff_profile'
-        ]
+        fields = '__all__'
         read_only_fields = ['email', 'user_type']
 
     def update(self, instance, validated_data):
