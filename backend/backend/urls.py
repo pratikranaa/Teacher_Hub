@@ -57,6 +57,7 @@ urlpatterns = [
     path('api/v1/', schema_view.with_ui('swagger', cache_timeout=0), name="swagger-schema"),
     path('api/',include('accounts.urls')),
     path('api/', include('substitutes.urls')),
+    path('api/teaching-sessions/', include('teaching_sessions.urls')),
     path('api/login/', UserLoginView.as_view(), name='token_obtain_pair'),
     path('api/login-refresh/', jwt_views.TokenRefreshView.as_view(), name='token_refresh'),
     path('api/login-verify/', jwt_views.TokenVerifyView.as_view(), name='verify_token'),

@@ -67,6 +67,12 @@ const data = {
       badge: "10",
       isActive: (window.location.pathname === "/history") ? true : false,
     },
+    {
+      title: "External Recordings",
+      url: "/external-recordings",
+      icon: AudioWaveform,
+      isActive: (window.location.pathname === "/external-recordings") ? true : false,
+    },
   ],
   navSecondary: [
   ],

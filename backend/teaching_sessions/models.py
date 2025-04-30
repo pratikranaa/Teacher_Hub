@@ -60,11 +60,25 @@ from datetime import timedelta
 
 class SessionRecording(models.Model):
     session = models.OneToOneField('TeachingSession', on_delete=models.CASCADE)
-    recording_url = models.URLField()
-    duration = models.DurationField()
-    size = models.BigIntegerField(help_text="Size in bytes")
+    recording_url = models.URLField(blank=True, null=True)
+    duration = models.DurationField(blank=True, null=True)
+    size = models.BigIntegerField(help_text="Size in bytes", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
+    expires_at = models.DateTimeField(blank=True, null=True)
+    
+    # JioMeet specific fields
+    jiomeet_id = models.CharField(max_length=20, blank=True, null=True)
+    room_pin = models.CharField(max_length=20, blank=True, null=True)
+    history_id = models.CharField(max_length=100, blank=True, null=True)
+    status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('STARTED', 'Started'),
+            ('COMPLETED', 'Completed'),
+            ('FAILED', 'Failed')
+        ],
+        default='STARTED'
+    )
 
     def save(self, *args, **kwargs):
         if not self.expires_at:
