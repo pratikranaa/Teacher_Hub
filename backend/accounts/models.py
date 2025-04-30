@@ -153,11 +153,42 @@ class School(models.Model):
                     'Masters': 2,
                     'Bachelors': 1
                 },
-                'rating_multiplier': 2.0,
-                'experience_multiplier': 0.5
+                'rating_multiplier': {
+                    'factor': 2.0
+                },
+                'experience_multiplier': {
+                    'factor': 0.5
+                }
             }
         }
-        return {**default_settings, **self.matching_algorithm_settings}
+        
+        # Deep merge of nested dictionaries
+        result = default_settings.copy()
+        
+        # If there are no saved settings, return defaults
+        if not self.matching_algorithm_settings:
+            return result
+            
+        # Merge top level fields
+        for key, value in self.matching_algorithm_settings.items():
+            if key != 'weights':
+                result[key] = value
+                
+        # Handle weights dictionary specially for deep merging
+        if 'weights' in self.matching_algorithm_settings:
+            for weight_key, weight_value in self.matching_algorithm_settings['weights'].items():
+                if weight_key in result['weights']:
+                    if isinstance(weight_value, dict) and isinstance(result['weights'][weight_key], dict):
+                        # Deep merge for nested dictionaries like qualification
+                        result['weights'][weight_key].update(weight_value)
+                    else:
+                        # Direct replacement for simple values
+                        result['weights'][weight_key] = weight_value
+                else:
+                    # Add new weight categories not in defaults
+                    result['weights'][weight_key] = weight_value
+                    
+        return result
 
 class TeacherProfile(models.Model):
     AVAILABILITY_STATUS = (

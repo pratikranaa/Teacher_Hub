@@ -92,7 +92,7 @@ class AlgorithmSettingsSerializer(serializers.Serializer):
     )
 
     def validate_weights(self, value):
-        required_keys = ['qualification', 'rating_multiplier', 'experience_multiplier']
+        required_keys = ['qualification', 'rating_multiplier', 'experience_multiplier', 'distance_multiplier']
         if not all(key in value for key in required_keys):
             raise serializers.ValidationError(f"Missing required weight categories: {required_keys}")
         return value

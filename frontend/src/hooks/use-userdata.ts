@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { BASE_API_URL } from "@/lib/config"
 
 export interface UserData {
@@ -108,59 +108,60 @@ export function useUserData() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setIsLoading(true)
-        const token = localStorage.getItem("accessToken")
-        
-        if (!token) {
-          throw new Error("No access token found")
-        }
-        
-        const response = await fetch(`${BASE_API_URL}/api/profile/`, {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch user profile")
-        }
-
-        const data = await response.json()
-        
-        // If user is a school admin, fetch algorithm settings
-        if (data.user_type === 'SCHOOL_ADMIN' && data.school_profile) {
-          try {
-            const algorithmResponse = await fetch(`${BASE_API_URL}/api/schools/algorithm-settings/`, {
-              headers: {
-                "Authorization": `Bearer ${token}`
-              }
-            })
-            
-            if (algorithmResponse.ok) {
-              const algorithmData = await algorithmResponse.json()
-              // Merge algorithm settings with school profile data
-              data.school_profile.matching_algorithm_settings = algorithmData
-            }
-          } catch (algorithmErr) {
-            console.error("Error fetching algorithm settings:", algorithmErr)
-            // Continue with user data even if algorithm settings fail
-          }
-        }
-        
-        setUserData(data)
-      } catch (err) {
-        console.error("Error fetching user data:", err)
-        setError(err instanceof Error ? err.message : "Failed to load user profile")
-      } finally {
-        setIsLoading(false)
+  const fetchUserData = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const token = localStorage.getItem("accessToken")
+      
+      if (!token) {
+        throw new Error("No access token found")
       }
-    }
+      
+      const response = await fetch(`${BASE_API_URL}/api/profile/`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
 
-    fetchUserData()
+      if (!response.ok) {
+        throw new Error("Failed to fetch user profile")
+      }
+
+      const data = await response.json()
+      
+      // If user is a school admin, fetch algorithm settings
+      if (data.user_type === 'SCHOOL_ADMIN' && data.school_profile) {
+        try {
+          const algorithmResponse = await fetch(`${BASE_API_URL}/api/school/algorithm-settings/`, {
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          })
+          
+          if (algorithmResponse.ok) {
+            const algorithmData = await algorithmResponse.json()
+            // Merge algorithm settings with school profile data
+            data.school_profile.matching_algorithm_settings = algorithmData
+          }
+        } catch (algorithmErr) {
+          console.error("Error fetching algorithm settings:", algorithmErr)
+          // Continue with user data even if algorithm settings fail
+        }
+      }
+      
+      setUserData(data)
+      setError(null)
+    } catch (err) {
+      console.error("Error fetching user data:", err)
+      setError(err instanceof Error ? err.message : "Failed to load user profile")
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
-  return { userData, isLoading, error }
+  useEffect(() => {
+    fetchUserData()
+  }, [fetchUserData])
+
+  return { userData, isLoading, error, refreshUserData: fetchUserData }
 }

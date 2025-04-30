@@ -368,7 +368,11 @@ export default function Page() {
           </div>
         </div>
       </SidebarInset>
-      <SidebarRight />
+      <SidebarRight userData={userData ? {
+        name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username,
+        email: userData.email,
+        avatar: userData.profile_image || "/avatars/shadcn.jpg"
+      } : undefined} />
     </SidebarProvider>
   );
 }
