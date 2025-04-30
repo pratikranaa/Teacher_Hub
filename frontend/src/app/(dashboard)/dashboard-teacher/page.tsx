@@ -157,7 +157,7 @@ export default function Page() {
                
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="default">Create Request</Button>
+                  <Button variant="outline">Create Request</Button>
                 </SheetTrigger>
                 <SheetContent>
                   <SheetHeader>

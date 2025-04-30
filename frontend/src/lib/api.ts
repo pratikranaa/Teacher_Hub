@@ -54,7 +54,6 @@ export const getCompletedRequests = async () => {
   return axios.get(`${API_URL}/api/substitute-requests/completed/`);
 };
 
-
 // Get a specific request
 export const getRequest = async (id) => {
   return axios.get(`${API_URL}/api/substitute-requests/${id}/`);
@@ -64,7 +63,6 @@ export const getRequest = async (id) => {
 export const createRequest = async (requestData) => {
   return axios.post(`${API_URL}/api/substitute-requests/`, requestData);
 };
-
 
 export async function acceptSubstituteRequest(requestId: string) {
   const token = getAuthTokens()?.accessToken;
@@ -82,7 +80,6 @@ export async function acceptSubstituteRequest(requestId: string) {
   
   return await response.json();
 }
-
 
 export async function declineSubstituteRequest(requestId: string, rejectionNote: string) {
   const token = getAuthTokens()?.accessToken;
@@ -105,7 +102,6 @@ export async function declineSubstituteRequest(requestId: string, rejectionNote:
   return await response.json();
 }
 
-
 // Get form options (subjects, grades, etc)
 export const getFormOptions = async () => {
   return axios.get(`${API_URL}/api/substitute-form-options/`);
@@ -115,3 +111,68 @@ export const getFormOptions = async () => {
 export const getInvitationHistory = async (id) => {
   return axios.get(`${API_URL}/api/substitute-requests/${id}/invitation_history/`);
 };
+
+// Get all session recordings
+export async function fetchSessionRecordings() {
+  const token = localStorage.getItem("accessToken");
+  
+  const response = await fetch(`${API_URL}/api/teaching-sessions/recordings/`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error("Failed to fetch session recordings");
+  }
+  
+  return await response.json();
+}
+
+// Get recording URL for a specific recording
+export async function fetchRecordingUrl(recordingId) {
+  const token = localStorage.getItem("accessToken");
+  
+  const response = await fetch(`${API_URL}/api/teaching-sessions/recordings/${recordingId}/fetch_recording_url/`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error("Failed to fetch recording URL");
+  }
+  
+  return await response.json();
+}
+
+// Play a recording in a new window
+export function playRecording(recordingUrl, jwt) {
+  if (!recordingUrl) return;
+  
+  // Create URL with JWT token if provided
+  const url = jwt ? `${recordingUrl}?token=${jwt}` : recordingUrl;
+  window.open(url, '_blank');
+}
+
+// Download a recording
+export async function downloadRecording(recordingUrl, jwt, filename = 'recording.mp4') {
+  if (!recordingUrl) return;
+  
+  try {
+    // Create a hidden link with download attribute
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = jwt ? `${recordingUrl}?token=${jwt}` : recordingUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  } catch (error) {
+    console.error("Error downloading recording:", error);
+    throw error;
+  }
+}

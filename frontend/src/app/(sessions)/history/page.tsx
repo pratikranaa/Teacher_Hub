@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { SidebarLeft } from "@/components/sidebar-left"
 import { SidebarRight } from "@/components/sidebar-right"
@@ -8,70 +8,154 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 import { useUserData } from "@/hooks/use-userdata"
+import { fetchSessionRecordings, fetchRecordingUrl, playRecording, downloadRecording } from "@/lib/api"
+import { Loader2, Download, ExternalLink } from "lucide-react"
 
-
-// Sample data for 50 entries
-const sessionData = Array.from({ length: 50 }, (_, index) => ({
-  id: index + 1,
-  topic: `Session Topic ${index + 1}`,
-  subject: `Subject ${index + 1}`,
-  class: `${10 + (index % 3)}th`, // Rotates between 10th, 11th, and 12th
-  date: `March ${25 - (index % 25)}, 2025`, // Rotates dates
-}))
-
-export default function TaskPage() {
+export default function SessionHistoryPage() {
   const { userData, isLoading: userLoading } = useUserData()
+  const { toast } = useToast()
   const [filteredClass, setFilteredClass] = useState<string | null>(null)
-  const [sortOption, setSortOption] = useState<string | null>(null)
+  const [sortOption, setSortOption] = useState<string | null>("date-desc")
   const [filteredSubject, setFilteredSubject] = useState<string | null>(null)
+  const [recordings, setRecordings] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [grades, setGrades] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedRecording, setSelectedRecording] = useState<any>(null)
+  const [playbackUrl, setPlaybackUrl] = useState("")
+  const [playbackLoading, setPlaybackLoading] = useState(false)
+  const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null)
 
+  // Fetch recordings when component mounts
+  useEffect(() => {
+    fetchRecordingsData();
+  }, []);
 
-  // Filter logic
-  const filteredData = filteredClass && filteredClass !== "none" 
-    ? sessionData.filter((session) => session.class === filteredClass)
-    : sessionData
-
-  const filteredDatabySubject = filteredSubject && filteredSubject !== "none"
-    ? filteredData.filter((session) => session.subject === filteredSubject)
-    : filteredData
-
-  // Sort logic
-  const sortedData = [...filteredDatabySubject].sort((a, b) => {
-    if (sortOption === "class-asc") {
-      return a.class.localeCompare(b.class)
-    } else if (sortOption === "class-desc") {
-      return b.class.localeCompare(a.class)
-    } else if (sortOption === "date-asc") {
-      return new Date(a.date).getTime() - new Date(b.date).getTime()
-    } else if (sortOption === "date-desc") {
-      return new Date(b.date).getTime() - new Date(a.date).getTime()
+  // Function to fetch recordings from API
+  const fetchRecordingsData = async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchSessionRecordings();
+      setRecordings(data);
+      
+      // Extract unique subjects and grades for filters
+      const uniqueSubjects = [...new Set(data.map(rec => rec.session_details?.subject))].filter(Boolean);
+      const uniqueGrades = [...new Set(data.map(rec => rec.session_details?.grade))].filter(Boolean);
+      
+      setSubjects(uniqueSubjects);
+      setGrades(uniqueGrades);
+    } catch (error) {
+      console.error("Error fetching session recordings:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load session recordings. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-    return 0
-  })
+  };
+
+  // Handle playing a recording
+  const handlePlayRecording = async (recording) => {
+    try {
+      setSelectedRecording(recording);
+      setPlaybackLoading(true);
+      setActiveRecordingId(recording.id);
+      
+      const data = await fetchRecordingUrl(recording.id);
+      setPlaybackUrl(data.recording_url);
+      
+      // Auto-play the recording in a new window
+      if (data.recording_url) {
+        playRecording(data.recording_url, null);
+      }
+    } catch (error) {
+      console.error("Error fetching recording URL:", error);
+      toast({
+        title: "Recording Not Available",
+        description: "The recording might still be processing or isn't available yet.",
+        variant: "destructive"
+      });
+    } finally {
+      setPlaybackLoading(false);
+    }
+  };
+
+  // Handle downloading a recording
+  const handleDownloadRecording = async (recording) => {
+    try {
+      setActiveRecordingId(recording.id);
+      setPlaybackLoading(true);
+      
+      const data = await fetchRecordingUrl(recording.id);
+      
+      if (data.recording_url) {
+        // Generate filename based on session details
+        const sessionDate = recording.session_details?.date || new Date().toISOString().split('T')[0];
+        const subject = recording.session_details?.subject || 'Unknown';
+        const grade = recording.session_details?.grade || '';
+        const filename = `${subject}_${grade}_${sessionDate}.mp4`;
+        
+        await downloadRecording(data.recording_url, null, filename);
+        
+        toast({
+          title: "Success",
+          description: "Download started successfully",
+        });
+      } else {
+        throw new Error("Recording not available");
+      }
+    } catch (error) {
+      console.error("Error downloading recording:", error);
+      toast({
+        title: "Error",
+        description: "Failed to download recording. It might still be processing.",
+        variant: "destructive"
+      });
+    } finally {
+      setActiveRecordingId(null);
+      setPlaybackLoading(false);
+    }
+  };
+
+  // Filter recordings based on subject and grade
+  const filteredRecordings = recordings.filter(recording => {
+    const matchesSubject = !filteredSubject || 
+      recording.session_details?.subject === filteredSubject;
+    
+    const matchesGrade = !filteredClass || 
+      recording.session_details?.grade === filteredClass;
+    
+    return matchesSubject && matchesGrade;
+  });
+
+  // Sort recordings based on selected option
+  const sortedRecordings = [...filteredRecordings].sort((a, b) => {
+    if (sortOption === "date-asc") {
+      return new Date(a.session_details?.date || 0).getTime() - new Date(b.session_details?.date || 0).getTime();
+    } else if (sortOption === "date-desc") {
+      return new Date(b.session_details?.date || 0).getTime() - new Date(a.session_details?.date || 0).getTime();
+    } else if (sortOption === "class-asc") {
+      return (a.session_details?.grade || '').localeCompare(b.session_details?.grade || '');
+    } else if (sortOption === "class-desc") {
+      return (b.session_details?.grade || '').localeCompare(a.session_details?.grade || '');
+    }
+    
+    return 0;
+  });
 
   return (
     <SidebarProvider>
@@ -101,111 +185,175 @@ export default function TaskPage() {
                 Here&apos;s a list of all the session recordings for your school.
               </p>
             </div>
+            
             {/* Filter and Sort Components */}
             <div className="flex space-x-4">
               {/* Filter by Subject */}
-              <Select onValueChange={(value) => setFilteredSubject(value)}>
+              <Select onValueChange={(value) => setFilteredSubject(value === 'none' ? null : value)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by Subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Filter by Subject</SelectItem>
-                  <SelectItem value="English">English</SelectItem>
-                  <SelectItem value="Subject 1">Subject 1</SelectItem>
-                  <SelectItem value="Subject 2">Subject 2</SelectItem>
-                  <SelectItem value="Subject 3">Subject 3</SelectItem>
-                  <SelectItem value="Subject 4">Subject 4</SelectItem>
-                  <SelectItem value="Subject 5">Subject 5</SelectItem>
+                  <SelectItem value="none">All Subjects</SelectItem>
+                  {subjects.map(subject => (
+                    <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
               {/* Filter by Class */}
-              <Select onValueChange={(value) => setFilteredClass(value)}>
+              <Select onValueChange={(value) => setFilteredClass(value === 'none' ? null : value)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by Class" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Filter by Class</SelectItem>
-                  <SelectItem value="10th">10th</SelectItem>
-                  <SelectItem value="11th">11th</SelectItem>
-                  <SelectItem value="12th">12th</SelectItem>
+                  <SelectItem value="none">All Classes</SelectItem>
+                  {grades.map(grade => (
+                    <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
-              {/* Sort by Class or Date */}
-              <Select onValueChange={(value) => setSortOption(value)}>
+              {/* Sort options */}
+              <Select defaultValue="date-desc" onValueChange={(value) => setSortOption(value)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sort By</SelectItem>
-                  <SelectItem value="class-asc">Class (Ascending)</SelectItem>
-                  <SelectItem value="class-desc">Class (Descending)</SelectItem>
-                  <SelectItem value="date-asc">Date (Ascending)</SelectItem>
-                  <SelectItem value="date-desc">Date (Descending)</SelectItem>
+                  <SelectItem value="date-desc">Date (Newest First)</SelectItem>
+                  <SelectItem value="date-asc">Date (Oldest First)</SelectItem>
+                  <SelectItem value="class-asc">Class (A-Z)</SelectItem>
+                  <SelectItem value="class-desc">Class (Z-A)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
+          {/* Loading state */}
+          {isLoading && (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin opacity-50" />
+            </div>
+          )}
+          
+          {/* Empty state */}
+          {!isLoading && sortedRecordings.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <p className="text-lg font-medium">No recordings found</p>
+              <p className="text-sm text-muted-foreground">
+                There are no recordings matching your filters or you don't have any recordings yet.
+              </p>
+            </div>
+          )}
+
           {/* Session History Table */}
-          <Table>
-            <TableCaption>A list of all session recordings.</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead className="w-[200px]">Topic</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Class</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-center">Options</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedData.map((session) => (
-                <TableRow key={session.id}>
-                  <TableCell className="font-medium">{session.id}</TableCell>
-                  <TableCell>{session.topic}</TableCell>
-                  <TableCell>{session.subject}</TableCell>
-                  <TableCell>{session.class}</TableCell>
-                  <TableCell>{session.date}</TableCell>
-                  <TableCell className="text-center">
-                    <Sheet>
-                      <SheetTrigger>
-                        <button className="mr-2 text-blue-500 hover:underline">Play</button>
-                      </SheetTrigger>
-                      <SheetContent side="bottom" className="w-full h-full">
-                        <SheetHeader>
-                          <SheetTitle>{session.topic}</SheetTitle>
-                          <SheetDescription>
-                            Recording from {session.date}
-                          </SheetDescription>
-                        </SheetHeader>
-                        <div className="mt-4 flex flex-col items-center">
-                          <Image
-                            src="/maxresdefault.jpg" // Replace with your placeholder image path
-                            alt="Recording Thumbnail"
-                            width={900}
-                            height={400}
-                            className="rounded-md"
-                          />
-                          <div className="mt-4 flex space-x-4">
-                            <button className="px-4 py-2 bg-blue-500 text-white rounded-md">
-                              Play
-                            </button>
-                            <button className="px-4 py-2 bg-gray-500 text-white rounded-md">
-                              Pause
-                            </button>
-                          </div>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                    <button className="text-blue-500 hover:underline">Download</button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {!isLoading && sortedRecordings.length > 0 && (
+            <div className="rounded-md border">
+              <Table>
+                <TableCaption>A list of all session recordings.</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">#</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Grade</TableHead>
+                    <TableHead>Teacher</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedRecordings.map((recording, index) => {
+                    const details = recording.session_details || {};
+                    const displayDate = details.date ? new Date(details.date).toLocaleDateString() : 'N/A';
+                    
+                    return (
+                      <TableRow key={recording.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell>{details.subject || 'N/A'}</TableCell>
+                        <TableCell>{details.grade || 'N/A'}</TableCell>
+                        <TableCell>{details.teacher_name || 'N/A'}</TableCell>
+                        <TableCell>{displayDate}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={recording.status === 'COMPLETED' ? "default" : "outline"}
+                            className={recording.status === 'STARTED' ? "bg-amber-100 text-amber-800 hover:bg-amber-100" : ""}
+                          >
+                            {recording.status || 'N/A'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center space-x-2">
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                disabled={recording.status !== 'COMPLETED' || activeRecordingId === recording.id}
+                                onClick={() => handlePlayRecording(recording)}
+                                className="mr-2"
+                              >
+                                {activeRecordingId === recording.id && playbackLoading ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="h-4 w-4 mr-1" />
+                                )}
+                                Play
+                              </Button>
+                            </SheetTrigger>
+                            <SheetContent>
+                              <SheetHeader>
+                                <SheetTitle>{details.subject || 'Recording'} - {details.grade || 'Session'}</SheetTitle>
+                                <SheetDescription>
+                                  Recording from {displayDate}
+                                </SheetDescription>
+                              </SheetHeader>
+                              
+                              <div className="mt-4 p-4">
+                                {playbackLoading ? (
+                                  <div className="flex flex-col items-center justify-center h-64">
+                                    <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                                    <p>Loading recording...</p>
+                                  </div>
+                                ) : playbackUrl ? (
+                                  <div className="text-center">
+                                    <p className="mb-4">Recording opened in a new window.</p>
+                                    <Button onClick={() => handlePlayRecording(selectedRecording)}>
+                                      Open Again
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="text-center">
+                                    <p className="mb-4">Recording not available yet or still processing.</p>
+                                    <Button onClick={() => handlePlayRecording(selectedRecording)}>
+                                      Try Again
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </SheetContent>
+                          </Sheet>
+                          
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            disabled={recording.status !== 'COMPLETED' || activeRecordingId === recording.id}
+                            onClick={() => handleDownloadRecording(recording)}
+                          >
+                            {activeRecordingId === recording.id && playbackLoading ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4 mr-1" />
+                            )}
+                            Download
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       </SidebarInset>
       <SidebarRight userData={userData ? {

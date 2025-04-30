@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -165,6 +166,7 @@ export function CreatedRequestsTable({ data, isLoading, onRefresh }) {
   return (
     <div>
     <Table>
+      <TableCaption>A list of Substitue requests created by you</TableCaption>
       <TableHeader>
         <TableRow>
           <TableHead>Date</TableHead>
