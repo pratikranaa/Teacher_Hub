@@ -29,6 +29,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SchoolNotificationCenter } from "./components/notification-center-school";
+import { useUserData } from "@/hooks/use-userdata"
+
 
 
 export default function Page() {
@@ -39,6 +41,8 @@ export default function Page() {
   const [teachers, setTeachers] = useState([]);
   const [pendingProfiles, setPendingProfiles] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const { userData, isLoading: userLoading } = useUserData()
+
 
 
 
@@ -159,20 +163,21 @@ export default function Page() {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbPage className="line-clamp-1">
-                    Welcome to Your Dashboard
+                    {userLoading ? "Loading..." : `Welcome, ${userData?.first_name || userData?.username}`}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
             <div className="flex-1" />
-              <SchoolNotificationCenter />
+            <SchoolNotificationCenter />
+          </div>
         </header>
 
-
-        
         <div className="flex flex-1 flex-col gap-4 p-4 ">
           <div className="mx-auto h-[100vh] w-full max-w-3xl rounded-xl bg-muted/5 space-y-5 p-4">
-            <h1 className="text-2xl font-bold">School Admin Dashboard</h1>
+            <h1 className="text-2xl font-bold">
+              {userLoading ? "School Admin Dashboard" : `${userData?.school_name || "School"} Dashboard`}
+            </h1>
 
             {/* Substitute Requests */}
             <Card className="p-4 space-y-4">

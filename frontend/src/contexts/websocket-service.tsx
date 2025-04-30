@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from 'next/navigation'
 import { getUserData } from '@/lib/auth'
 import { BASE_API_URL } from '@/lib/config'
+import { Button } from "@/components/ui/button"
 
 interface WebSocketContextType {
   notifications: Notification[]

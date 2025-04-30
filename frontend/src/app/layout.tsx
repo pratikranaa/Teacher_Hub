@@ -29,6 +29,7 @@ export default function RootLayout({
         <AuthProvider>
           <WebSocketProvider>
           {children}
+          <Toaster />
           </WebSocketProvider>
         </AuthProvider>
       </body>

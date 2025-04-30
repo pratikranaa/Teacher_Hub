@@ -1,7 +1,7 @@
 import * as React from "react"
-import { Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { LogOut, Plus } from "lucide-react"
 
-import { Calendars } from "@/components/calendars"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -15,29 +15,20 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
+import { clearAuth } from "@/lib/auth"
+import { useToast } from "@/hooks/use-toast"
+
+
 
 // This is sample data.
 const defaultData = {
   user: {
-    name: "Shadcn",
-    email: "m1@example.com",
+    name: "Please Login",
+    email: "Login Please",
     avatar: "/avatars/shadcn.jpg",
   },
-  calendars: [
-    {
-      name: "My Calendars",
-      items: ["Personal", "Work", "Family"],
-    },
-    {
-      name: "Favorites",
-      items: ["Holidays", "Birthdays"],
-    },
-    {
-      name: "Other",
-      items: ["Travel", "Reminders", "Deadlines"],
-    },
-  ],
 }
+
 
 
 export function SidebarRight({
@@ -48,6 +39,24 @@ export function SidebarRight({
 }) {
   // Use provided userData or fall back to default
   const user = userData || defaultData.user;
+  const router = useRouter()
+
+  const { toast } = useToast()
+
+  const handleLogout = () => {
+    // Clear authentication data directly from the auth util
+    clearAuth()
+    
+    // Display logout success notification
+    toast({
+      title: "Logged out successfully",
+      description: "You have been logged out of your account.",
+    })
+    
+    // Redirect to login page
+    router.push("/login")
+  }
+
   
   return (
     <Sidebar
@@ -61,18 +70,18 @@ export function SidebarRight({
       <SidebarContent>
         <DatePicker />
         <SidebarSeparator className="mx-0" />
-        <Calendars calendars={defaultData.calendars} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Plus />
-              <span>New Calendar</span>
+            <SidebarMenuButton onClick={handleLogout} >
+              <LogOut />
+              <span>Log out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
 }

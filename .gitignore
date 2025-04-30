@@ -1,5 +1,6 @@
 # Virtual environments
 venv/
+Zoom/
 
 # Python cache and compiled files
 __pycache__/

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import SubstituteRequest, TeacherAvailability, RequestInvitation
-from accounts.models import School
+from accounts.models import School, User
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -27,11 +27,26 @@ class TeacherInvitationSerializer(serializers.ModelSerializer):
             'id': obj.teacher.id,
             'name': obj.teacher.get_full_name(),
             'email': obj.teacher.email,
-            'phone': obj.teacher.phone,
-            'experience': obj.teacher.teacher_profile.experience,
+            'experience': obj.teacher.teacher_profile.experience_years,
+            'teaching_methodology': obj.teacher.teacher_profile.teaching_methodology,
+            'qualifications': obj.teacher.teacher_profile.qualification,
             'subjects': obj.teacher.teacher_profile.subjects,
             'rating': obj.teacher.teacher_profile.rating,
-            'availability_status': obj.teacher.teacher_profile.availability_status
+            'availability_status': obj.teacher.teacher_profile.availability_status,
+            'travel_radius': obj.teacher.teacher_profile.travel_radius,
+            'can_teach_online': obj.teacher.teacher_profile.can_teach_online,
+            'can_travel': obj.teacher.teacher_profile.can_travel,
+            'hourly_rate': obj.teacher.teacher_profile.hourly_rate,
+            'preferred_classes': obj.teacher.teacher_profile.preferred_classes,
+            'preferred_boards': obj.teacher.teacher_profile.preferred_boards,
+            'document_verification_status': obj.teacher.teacher_profile.document_verification_status,
+            'languages': obj.teacher.teacher_profile.languages,
+            'address': obj.teacher.teacher_profile.address,
+            'city': obj.teacher.teacher_profile.city,
+            'state': obj.teacher.teacher_profile.state,
+            'country': obj.teacher.teacher_profile.country,
+            'postal_code': obj.teacher.teacher_profile.postal_code,
+            'date_of_birth': obj.teacher.teacher_profile.date_of_birth
         }
 
 class TeacherAvailabilitySerializer(serializers.ModelSerializer):

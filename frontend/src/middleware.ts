@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   const user = JSON.parse(userData)
 
   // Handle different routes based on user status
-  if (request.nextUrl.pathname === '/dashboard-school' || request.nextUrl.pathname === '/dashboard-student' || request.nextUrl.pathname === '/dashboard-teacher') {
+  if (request.nextUrl.pathname === '/dashboard-school' || request.nextUrl.pathname === '/dashboard-student' || request.nextUrl.pathname === '/dashboard-teacher' || request.nextUrl.pathname === '/dashboard') {
     if (!user.profileCompleted) {
       return NextResponse.redirect(new URL('/profile-completion', request.url))
     }

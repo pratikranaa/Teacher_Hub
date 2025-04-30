@@ -7,6 +7,13 @@ export const getAuthTokens = () => {
   }
 }
 
+export const getUserType = () => {
+  if (typeof window === 'undefined') return null;
+
+  const userType = localStorage.getItem('usertype')
+  return userType ? JSON.parse(userType) : null
+}
+
 export const getUserData = () => {
   if (typeof window === 'undefined') return null;
   
@@ -20,6 +27,8 @@ export const clearAuth = () => {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('refreshToken')
   localStorage.removeItem('userData')
+  localStorage.removeItem('usertype')
+  
 }
 
 export const isAuthenticated = () => {
@@ -47,6 +56,7 @@ export const refreshAuthToken = async () => {
 
     if (response.ok) {
       localStorage.setItem('accessToken', data.access);
+      localStorage.setItem('usertype', data.user_type);
       return data.access;
     } else {
       throw new Error('Token refresh failed');
@@ -85,7 +95,7 @@ export const createAuthenticatedFetch = () => {
           },
         });
       } catch (error) {
-        throw new Error('Authentication failed');
+        throw new Error('Authentication failed', { cause: error });
       }
     }
 

@@ -27,21 +27,18 @@ import { RejectedRequestsTable } from "./components/rejected-requests-table"
 import { CreatedRequestsTable } from "./components/created-requests-table"
 import { acceptSubstituteRequest, declineSubstituteRequest } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useUserData } from "@/hooks/use-userdata"
 import { TeacherNotificationCenter } from "./components/notification-center"
 
-const teacherUserData = {
-  name: "Teacher1",
-  email: "teacher1@example.com",
-  avatar: "/avatars/shadcn.jpg",
-};
 
 export default function Page() {
   const [pendingRequests, setPendingRequests] = useState([])
   const [requestHistory, setRequestHistory] = useState([])
   const [rejectedRequests, setRejectedRequests] = useState([])
-  const [createdRequests, setCreatedRequests] = useState([]) // Add this state
+  const [createdRequests, setCreatedRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
+  const { userData, isLoading: userLoading } = useUserData()
   
   const fetchRequests = async () => {
     try {
@@ -134,26 +131,20 @@ export default function Page() {
       <SidebarLeft />
       <SidebarInset>
         <header className="sticky top-0 flex h-14 shrink-0 items-center gap-2 bg-background">
-          
           <div className="flex flex-1 items-center gap-2 px-3">
-
             <SidebarTrigger />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
-              
                 <BreadcrumbItem>
                   <BreadcrumbPage className="line-clamp-1 text-3xl font-bold">
-                    Teacher Hub
+                    {userLoading ? "Loading..." : `Welcome, ${userData?.first_name || userData?.username}`}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
             <div className="flex-1" />
             <TeacherNotificationCenter />
-          
-
-
           </div>
         </header>
         
@@ -225,8 +216,12 @@ export default function Page() {
           </div>
         </div>
       </SidebarInset>
-      
-      <SidebarRight userData={teacherUserData} />
+      {/* Pass the dynamic user data to SidebarRight */}
+      <SidebarRight userData={userData ? {
+        name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username,
+        email: userData.email,
+        avatar: userData.profile_image || "/avatars/shadcn.jpg"
+      } : undefined} />
     </SidebarProvider>
   )
 }
