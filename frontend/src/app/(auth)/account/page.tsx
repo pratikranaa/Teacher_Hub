@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useUserData } from "@/hooks/use-userdata"
 import { useToast } from "@/hooks/use-toast"
+import { isAuthenticated } from "@/lib/auth"
+import { useRequireAuth } from "@/hooks/use-auth"
 import { BASE_API_URL } from "@/lib/config"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +26,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SidebarLeft } from "@/components/sidebar-left"
 
 export default function AccountPage() {
+  const router = useRouter()
+  const { loading: authLoading } = useRequireAuth() // Client-side auth protection
   const { userData, isLoading: userLoading, error: userError, refreshUserData } = useUserData()
   const [formData, setFormData] = useState<any>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -45,6 +50,15 @@ export default function AccountPage() {
     }
   })
   const { toast } = useToast()
+
+  // Additional auth check when the component mounts
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      console.log("User not authenticated in AccountPage, redirecting to login")
+      router.push('/login')
+      return
+    }
+  }, [router])
 
   useEffect(() => {
     if (userData) {
@@ -381,7 +395,7 @@ export default function AccountPage() {
     });
   };
 
-  if (userLoading) {
+  if (userLoading || authLoading) {
     return (
       <div className="flex h-[100vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

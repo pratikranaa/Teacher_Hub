@@ -20,6 +20,7 @@ import {
   User,
   Bell,
   Clock,
+  Video,
 } from "lucide-react"
 
 import { NavFavorites } from "@/components/nav-favorites"
@@ -62,17 +63,18 @@ export function SidebarLeft({
         icon: User,
         isActive: pathname === "/account",
       },
-      // {
-      //   title: "Request Substitute",
-      //   url: "#",
-      //   icon: Plus,
-      // },
       {
         title: "Session History",
         url: "/history",
         icon: Clock,
         badge: "10",
         isActive: pathname === "/history",
+      },
+      {
+        title: "External Recordings",
+        url: "/external-recordings",
+        icon: Video,
+        isActive: pathname === "/external-recordings",
       },
     ],
     navSecondary: [

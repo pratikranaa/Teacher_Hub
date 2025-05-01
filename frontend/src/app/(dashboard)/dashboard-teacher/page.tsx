@@ -171,7 +171,7 @@ export default function Page() {
             </div>
 
             <Tabs defaultValue="created">
-              <TabsList className="mb-4">
+              <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="created">Created Requests</TabsTrigger>
                 <TabsTrigger value="pending">Pending Requests</TabsTrigger>
                 <TabsTrigger value="history">Accepted Requests</TabsTrigger>

@@ -232,6 +232,19 @@ class SubstituteRequest(models.Model):
         self.status = 'ASSIGNED'
         self.save()
 
+        # Create or update invitation record to track this assignment
+        from django.utils import timezone
+        RequestInvitation.objects.update_or_create(
+            substitute_request=self,
+            teacher=teacher,
+            defaults={
+                'status': 'ACCEPTED',
+                'invited_at': timezone.now(),
+                'responded_at': timezone.now(),
+                'batch_number': 1
+            }
+        )
+
         # Split the availability into before, during, and after slots
         availabilities_to_create = []
 

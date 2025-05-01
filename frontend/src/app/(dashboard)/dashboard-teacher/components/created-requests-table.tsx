@@ -229,6 +229,19 @@ export function CreatedRequestsTable({ data, isLoading, onRefresh }) {
                           </Badge>
                         </div>
                         <div>
+                          <p className="text-sm font-medium text-gray-500">Requested By</p>
+                          <p>
+                            {selectedRequest.requested_by_details?.name || 
+                             (selectedRequest.requested_by_details?.email?.split('@')[0]) || 
+                             "Unknown"}
+                          </p>
+                          {selectedRequest.requested_by_details?.email && (
+                            <p className="text-xs text-blue-600">
+                              {selectedRequest.requested_by_details.email}
+                            </p>
+                          )}
+                        </div>
+                        <div>
                           <p className="text-sm font-medium text-gray-500">Date</p>
                           <p>{selectedRequest.date}</p>
                         </div>
