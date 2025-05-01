@@ -143,7 +143,7 @@ class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
     matching_teachers = serializers.SerializerMethodField()
     current_status = serializers.SerializerMethodField()
     invitations = TeacherInvitationSerializer(many=True, read_only=True)
-
+    requested_by_details = serializers.SerializerMethodField()
     
     class Meta:
         model = SubstituteRequest
@@ -155,7 +155,8 @@ class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
             'updated_at', 
             'meeting_link',
             'host_link',
-            'matching_teachers'
+            'matching_teachers',
+            'requested_by_details'
         ]
 
     def get_assigned_teacher_details(self, obj):
@@ -165,6 +166,18 @@ class SubstituteRequestDetailSerializer(serializers.ModelSerializer):
                 'id': obj.assigned_teacher.id,
                 'name': obj.assigned_teacher.get_full_name(),
                 'email': obj.assigned_teacher.email
+            }
+        return None
+        
+    def get_requested_by_details(self, obj):
+        """Get details of the user who requested the substitute"""
+        if obj.requested_by:
+            return {
+                'id': obj.requested_by.id,
+                'name': obj.requested_by.get_full_name(),
+                'email': obj.requested_by.email,
+                'username': obj.requested_by.username,
+                'user_type': obj.requested_by.user_type
             }
         return None
 

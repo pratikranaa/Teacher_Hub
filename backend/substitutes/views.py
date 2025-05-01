@@ -76,7 +76,7 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return SubstituteRequestCreateSerializer
-        elif self.action in ['retrieve', 'update', 'partial_update', 'invitation_history']:
+        elif self.action in ['retrieve', 'update', 'partial_update', 'invitation_history', 'requests_to_me']:
             return SubstituteRequestDetailSerializer
         return SubstituteRequestSerializer
     
@@ -117,11 +117,14 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def requests_to_me(self, request):
         """Returns requests where the current user was invited"""
-        queryset = SubstituteRequest.objects.filter(
-            invitations__teacher=request.user
-        ).distinct()
+        user = request.user
         
-        # Allow filtering by status
+        # Prefetch related invitations and teacher details to improve performance
+        queryset = SubstituteRequest.objects.filter(
+            invitations__teacher=user
+        ).prefetch_related('invitations', 'invitations__teacher').distinct()
+        
+        # Optional: Allow filtering by status
         status_param = request.query_params.get('status', None)
         if status_param:
             queryset = queryset.filter(invitations__status=status_param)
@@ -366,27 +369,6 @@ class SubstituteRequestViewSet(viewsets.ModelViewSet):
                 {'detail': 'Teacher invitation not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
-            
 
-    
-    @action(detail=False, methods=['get'])
-    def requests_to_me(self, request):
-        """
-        Returns requests where the current user was invited
-        """
-        user = request.user
-        queryset = SubstituteRequest.objects.filter(
-            invitations__teacher=user
-        ).distinct()
-        
-        # Optional: Allow filtering by status
-        status = request.query_params.get('status', None)
-        if status:
-            queryset = queryset.filter(invitations__status=status)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-    
-    
- 
-    
+
+

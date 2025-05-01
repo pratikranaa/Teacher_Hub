@@ -30,6 +30,7 @@ urlpatterns = [
     
     path('profile/', views.user_profile, name='user-profile'),
     path('profile/<str:username>/', views.FetchUserProfileView.as_view(), name='fetch-user-profile'),
+    path('profile-by-id/<uuid:user_id>/', views.FetchUserProfileByIdView.as_view(), name='fetch-user-profile-by-id'),
     path('profile/upload_image/', views.UploadProfileImageView.as_view(), name='upload-profile-image'),
     
     # Teacher-specific URLs
