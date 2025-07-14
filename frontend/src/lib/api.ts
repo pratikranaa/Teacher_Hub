@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getAuthTokens } from './auth'; // Adjust the import path as necessary
 import { access } from 'fs';
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 // Get all requests for the current user
 export const getUserRequests = async () => {

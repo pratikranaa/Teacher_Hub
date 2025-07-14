@@ -66,14 +66,44 @@ Our solution addresses critical pain points in the education sector:
 
 ## 🏁 Getting Started
 
-### Prerequisites
+### 🚀 Quick Start with Docker (Recommended)
+
+The fastest way to get Teacher Hub running is using our one-click Docker setup:
+
+```bash
+# Clone the repository
+git clone https://github.com/STATUS-200/teacher-hub.git
+cd teacher-hub
+
+# Run the setup script
+./setup.sh
+```
+
+**That's it!** The script will automatically:
+- Check system requirements
+- Set up environment variables
+- Build and start all services
+- Set up the database with sample data
+
+Access the application at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Admin Panel**: http://localhost:8000/admin
+
+📚 **For detailed Docker setup instructions, see [DOCKER_README.md](DOCKER_README.md)**
+
+### 🛠️ Manual Setup (Traditional)
+
+If you prefer manual setup or want to contribute to development:
+
+#### Prerequisites
 
 - Python 3.10+
 - Node.js 16+
 - PostgreSQL 13+
 - Redis (for message queuing)
 
-### Backend Setup
+#### Backend Setup
 
 1. Clone the repository:
 
@@ -138,7 +168,7 @@ Our solution addresses critical pain points in the education sector:
    uvicorn backend.asgi:application
    ```
 
-### Frontend Setup
+#### Frontend Setup
 
 1. Install frontend dependencies:
 
@@ -237,17 +267,49 @@ Our solution addresses critical pain points in the education sector:
    - Parent contact information maintained for emergency notifications
    - Updates about substitute arrangements
 
+## 🐳 Docker Deployment
+
+### Quick Deploy with Docker
+
+```bash
+# One-click setup
+./setup.sh
+
+# Or manual Docker setup
+docker-compose up -d
+```
+
+### Services Included
+- **Frontend**: Next.js application (Port 3000)
+- **Backend**: Django REST API (Port 8000)
+- **Database**: PostgreSQL (Port 5432)
+- **Cache**: Redis (Port 6379)
+- **Workers**: Celery for background tasks
+- **Proxy**: Nginx for production (Port 80/443)
+
+### Production Deployment
+```bash
+# Production with Nginx
+docker-compose --profile production up -d
+
+# Scale services
+docker-compose up -d --scale celery=3
+```
+
 ## Key Features to Demo
 
 1. **Interactive Dashboard**: The dashboard shows real-time statistics and pending actions for each user role.
 2. **Matching Algorithm**: Our intelligent matching system considers qualifications, availability, and past performance to suggest the most appropriate substitutes.
 3. **Real-time Notifications**: The system sends push notifications and email alerts for time-sensitive actions.
 4. **Video Conference Integration**: We've integrated with video conferencing APIs to facilitate remote teaching.
+5. **One-Click Deployment**: Complete Docker setup with automated configuration and sample data.
 
 ### Technical Achievements
 
 1. **Scalable Architecture**: The system is designed to handle multiple schools and thousands of users simultaneously.
 2. **Security Measures**: We've implemented role-based permissions, data encryption, and secure authentication.
+3. **Docker Deployment**: Complete containerization with one-click setup for easy deployment and training.
+4. **Production Ready**: Includes Nginx reverse proxy, SSL support, and monitoring capabilities.
 3. **Mobile Responsiveness**: The interface adapts seamlessly to mobile devices for on-the-go access.
 4. **Offline Functionality**: Critical features work even with intermittent internet connectivity.
 5. **AI-powered Recommendations**: Our system learns from past assignments to improve future matching.

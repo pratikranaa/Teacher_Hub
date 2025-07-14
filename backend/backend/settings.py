@@ -81,10 +81,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
+    "http://frontend:3000",  # Docker service name
 ]
 
 # Frontend URL for email links
-FRONTEND_URL = "http://localhost:3000"
+FRONTEND_URL = config('FRONTEND_URL', default="http://localhost:3000")
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -133,12 +134,12 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 
-# Configure channel layers (example using Redis)
+# Configure channel layers (Redis for WebSocket)
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [(config('REDIS_HOST', default='127.0.0.1'), config('REDIS_PORT', default=6379, cast=int))],
         },
     },
 }
