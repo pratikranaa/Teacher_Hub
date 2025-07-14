@@ -408,4 +408,21 @@ teacher-hub/
    - Check that ASGI configuration is correct
    - Verify WebSocket URL in frontend environment variables
 
-   ## 📧 Contact
+   ## 📚 Documentation
+
+### Complete Deployment Guides
+
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment guide with all details
+- **[DOCKER_README.md](DOCKER_README.md)** - Docker-specific documentation
+- **[DEPLOYMENT_SUMMARY.md](DEPLOYMENT_SUMMARY.md)** - Quick training summary
+
+### What's Included in Documentation
+
+- **Database migrations and sample data creation**
+- **Automatic account creation process**
+- **Service architecture and dependencies**
+- **Manual setup alternatives**
+- **Production deployment instructions**
+- **Comprehensive troubleshooting guide**
+
+## 📧 Contact

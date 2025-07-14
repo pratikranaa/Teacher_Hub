@@ -12,7 +12,7 @@ import Drawer from '@mui/material/Drawer';
 import Link from 'next/link';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import ColorModeIconDropdown from '.././theme/ColorModeIconDropdown';
+import ColorModeIconDropdown from '../../lib/theme/ColorModeIconDropdown';
 import Sitemark from './SitemarkIcon';
 
 const StyledToolbar = styled(Toolbar)(({ theme }) => ({

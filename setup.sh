@@ -159,13 +159,30 @@ setup_database() {
     print_status "Running database migrations..."
     docker-compose exec backend python manage.py migrate
     
-    # Create superuser (optional)
+    # Create superuser automatically
     echo ""
-    read -p "Do you want to create a superuser account? (y/n): " create_superuser
-    if [[ $create_superuser == "y" || $create_superuser == "Y" ]]; then
-        print_status "Creating superuser account..."
-        docker-compose exec backend python manage.py createsuperuser
-    fi
+    print_status "Creating superuser account..."
+    docker-compose exec backend python manage.py shell -c "
+from accounts.models import User
+if not User.objects.filter(email='admin@teacherhub.com').exists():
+    user = User.objects.create_superuser(
+        username='admin',
+        email='admin@teacherhub.com',
+        password='admin123',
+        user_type='SCHOOL_ADMIN'
+    )
+    print('✅ Superuser created successfully!')
+    print('Email: admin@teacherhub.com')
+    print('Username: admin')
+    print('Password: admin123')
+    print('Access: http://localhost:8000/admin')
+else:
+    print('⚠️  Superuser already exists')
+    print('Email: admin@teacherhub.com')
+    print('Username: admin')
+    print('Password: admin123')
+    print('Access: http://localhost:8000/admin')
+"
     
     print_success "Database setup completed!"
 }
@@ -182,6 +199,16 @@ show_info() {
     echo "   Backend API: http://localhost:8000"
     echo "   Admin Panel: http://localhost:8000/admin"
     echo "   API Documentation: http://localhost:8000/api/v1"
+    echo ""
+    echo "👤 Admin Account:"
+    echo "   Email: admin@teacherhub.com"
+    echo "   Username: admin"
+    echo "   Password: admin123"
+    echo ""
+    echo "🧪 Test Accounts:"
+    echo "   School Admin: admin1@school.edu / admin123"
+    echo "   Internal Teacher: teacher1@school.edu / teacher123"
+    echo "   External Teacher: external1@teacher.com / substitute123"
     echo ""
     echo "📊 Services Status:"
     docker-compose ps

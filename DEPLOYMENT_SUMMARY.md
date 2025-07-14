@@ -80,11 +80,12 @@ cd Teacher_Hub
 
 After setup, use these accounts for testing:
 
-| Role | Email | Password |
-|------|-------|----------|
-| School Admin | admin@delhipublic.edu | admin123 |
-| Internal Teacher | teacher@delhipublic.edu | teacher123 |
-| External Teacher | substitute@example.com | substitute123 |
+| Role | Email | Password | Purpose |
+|------|-------|----------|---------|
+| **Django Admin** | admin@teacherhub.com | admin123 | Full admin access |
+| School Admin | admin1@school.edu | admin123 | School management |
+| Internal Teacher | teacher1@school.edu | teacher123 | Create requests |
+| External Teacher | external1@teacher.com | substitute123 | Accept requests |
 
 ## 🛠️ Training Commands
 
