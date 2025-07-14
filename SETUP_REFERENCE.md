@@ -1,6 +1,15 @@
 # Teacher Hub - Setup Quick Reference
 
 ## 🚀 One-Click Setup
+
+### Prerequisites
+Ensure Docker is installed:
+
+**macOS:** `brew install --cask docker`  
+**Linux:** `sudo apt install docker.io docker-compose`  
+**Windows:** Download Docker Desktop
+
+### Setup
 ```bash
 git clone <repository-url>
 cd Teacher_Hub

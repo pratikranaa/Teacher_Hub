@@ -15,6 +15,29 @@
 
 ## 🚀 Quick Start
 
+### Prerequisites
+Before running the setup, ensure Docker is installed:
+
+**macOS:**
+```bash
+# Install Docker Desktop
+brew install --cask docker
+# Or download from: https://docs.docker.com/desktop/install/mac-install/
+```
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install docker.io docker-compose
+# Or install Docker Desktop from: https://docs.docker.com/desktop/install/linux-install/
+```
+
+**Windows:**
+```bash
+# Download Docker Desktop from: https://docs.docker.com/desktop/install/windows-install/
+# Or install via Chocolatey: choco install docker-desktop
+```
+
 ### One-Click Setup
 ```bash
 # Clone the repository
@@ -26,6 +49,8 @@ cd Teacher_Hub
 ```
 
 **That's it!** The script handles everything automatically.
+
+> **Note:** If Docker is not installed, the setup script will provide platform-specific installation instructions.
 
 ### Access Points After Setup
 - **Frontend**: http://localhost:3000
@@ -41,7 +66,9 @@ The `setup.sh` script performs the following steps **automatically**:
 
 ### 1. **System Requirements Check**
 - Verifies Docker and Docker Compose are installed
+- Provides platform-specific installation guidance if missing
 - Checks for required system dependencies
+- Validates Docker daemon is running
 
 ### 2. **Environment Configuration**
 - Creates `.env` file from `env.example` template

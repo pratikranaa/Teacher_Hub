@@ -47,21 +47,221 @@ Access the application at:
 ## 📦 Prerequisites
 
 ### System Requirements
-- **Docker**: Version 20.10 or higher
-- **Docker Compose**: Version 2.0 or higher
+- **Docker**: Version 20.10 or higher (Latest recommended)
+- **Docker Compose**: Version 2.0 or higher (Included with Docker Desktop)
 - **Operating System**: Linux, macOS, or Windows with WSL2
 - **RAM**: Minimum 4GB, Recommended 8GB
 - **Storage**: Minimum 2GB free space
 
-### Installation Links
-- [Docker Desktop](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
+### Docker Installation by Platform
+
+#### **🍎 macOS**
+
+**Option 1: Docker Desktop (Recommended)**
+```bash
+# Download from: https://docs.docker.com/desktop/install/mac-install/
+# For Apple Silicon (M1/M2): Docker Desktop for Mac with Apple silicon
+# For Intel: Docker Desktop for Mac with Intel chip
+
+# Or install via Homebrew
+brew install --cask docker
+```
+
+**System Requirements:**
+- macOS 10.15 or later
+- At least 4GB RAM
+- For Apple Silicon: Rosetta 2 (optional but recommended)
+```bash
+# Install Rosetta 2 if needed
+softwareupdate --install-rosetta
+```
+
+**Option 2: Command Line Installation**
+```bash
+# Download Docker.dmg then run:
+sudo hdiutil attach Docker.dmg
+sudo /Volumes/Docker/Docker.app/Contents/MacOS/install --accept-license
+sudo hdiutil detach /Volumes/Docker
+```
+
+#### **🐧 Linux**
+
+**Option 1: Docker Desktop for Linux**
+```bash
+# Ubuntu/Debian
+curl -fsSL https://desktop.docker.com/linux/main/amd64/docker-desktop-4.26.1-amd64.deb -o docker-desktop.deb
+sudo apt install ./docker-desktop.deb
+
+# Fedora
+sudo dnf install docker-desktop-4.26.1-x86_64.rpm
+
+# RHEL
+sudo yum install docker-desktop-4.26.1-x86_64.rpm
+```
+
+**Option 2: Docker Engine (Server/CLI)**
+```bash
+# Ubuntu
+sudo apt update
+sudo apt install ca-certificates curl gnupg lsb-release
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# CentOS/RHEL/Fedora
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add user to docker group (optional)
+sudo usermod -aG docker $USER
+```
+
+**Linux Requirements:**
+- 64-bit kernel with virtualization support
+- KVM virtualization (for Docker Desktop)
+- systemd init system
+- At least 4GB RAM
+
+#### **🪟 Windows**
+
+**Docker Desktop for Windows**
+```bash
+# Download from: https://docs.docker.com/desktop/install/windows-install/
+# Requires Windows 10/11 with WSL2
+
+# Or install via Chocolatey
+choco install docker-desktop
+
+# Or install via Winget
+winget install Docker.DockerDesktop
+```
+
+**Windows Requirements:**
+- Windows 10/11 (64-bit)
+- WSL2 feature enabled
+- Hyper-V capability
+- At least 4GB RAM
+
+**Enable WSL2:**
+```powershell
+# Run as Administrator
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+# Restart computer, then:
+wsl --set-default-version 2
+```
 
 ### Verify Installation
 ```bash
+# Check Docker version
 docker --version
-docker-compose --version
+
+# Check Docker Compose version
+docker compose version
+
+# Check Docker system info
 docker info
+
+# Test Docker installation
+docker run hello-world
+```
+
+### Troubleshooting Installation
+
+#### **Common Issues**
+
+1. **Permission Denied (Linux)**
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and log back in
+```
+
+2. **Docker Desktop Not Starting (macOS)**
+```bash
+# Reset Docker Desktop
+rm -rf ~/Library/Group\ Containers/group.com.docker
+open -a Docker
+```
+
+3. **WSL2 Issues (Windows)**
+```bash
+# Update WSL2
+wsl --update
+# Set WSL2 as default
+wsl --set-default-version 2
+```
+
+4. **Port Conflicts**
+```bash
+# Check what's using Docker ports
+lsof -i :2375
+lsof -i :2376
+# Kill conflicting processes
+sudo kill -9 <PID>
+```
+
+### Alternative Installation Methods
+
+#### **Using Package Managers**
+
+**macOS (Homebrew)**
+```bash
+# Install Docker Desktop
+brew install --cask docker
+
+# Or install Docker Engine only
+brew install docker
+brew install docker-compose
+```
+
+**Linux (Snap)**
+```bash
+# Ubuntu/Debian
+sudo snap install docker
+```
+
+**Windows (Chocolatey)**
+```bash
+# Install Docker Desktop
+choco install docker-desktop
+
+# Or install Docker Engine
+choco install docker-engine
+```
+
+### Docker Compose Installation
+
+Docker Compose is included with Docker Desktop. For standalone installation:
+
+```bash
+# Linux
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installation
+docker-compose --version
+```
+
+### Post-Installation Setup
+
+```bash
+# Configure Docker to start on boot (Linux)
+sudo systemctl enable docker
+
+# Configure Docker daemon (optional)
+sudo mkdir -p /etc/docker
+echo '{"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "3"}}' | sudo tee /etc/docker/daemon.json
+
+# Restart Docker service
+sudo systemctl restart docker
 ```
 
 ## 🏗️ Architecture Overview

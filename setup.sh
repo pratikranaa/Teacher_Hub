@@ -41,20 +41,64 @@ check_requirements() {
     # Check Docker
     if ! command_exists docker; then
         print_error "Docker is not installed. Please install Docker first."
-        echo "Visit: https://docs.docker.com/get-docker/"
+        echo ""
+        echo "🐳 Docker Installation Guide:"
+        echo ""
+        case "$(uname -s)" in
+            Darwin*)
+                echo "macOS:"
+                echo "  1. Download Docker Desktop: https://docs.docker.com/desktop/install/mac-install/"
+                echo "  2. Or install via Homebrew: brew install --cask docker"
+                ;;
+            Linux*)
+                echo "Linux:"
+                echo "  1. Docker Desktop: https://docs.docker.com/desktop/install/linux-install/"
+                echo "  2. Or Docker Engine:"
+                echo "     Ubuntu/Debian: sudo apt install docker.io docker-compose"
+                echo "     CentOS/RHEL: sudo yum install docker docker-compose"
+                echo "     Fedora: sudo dnf install docker docker-compose"
+                ;;
+            CYGWIN*|MINGW32*|MSYS*|MINGW*)
+                echo "Windows:"
+                echo "  1. Download Docker Desktop: https://docs.docker.com/desktop/install/windows-install/"
+                echo "  2. Or install via Chocolatey: choco install docker-desktop"
+                ;;
+        esac
+        echo ""
+        echo "📖 For complete installation guide, see: DOCKER_README.md"
         exit 1
     fi
     
     # Check Docker Compose
     if ! command_exists docker-compose && ! docker compose version >/dev/null 2>&1; then
         print_error "Docker Compose is not installed. Please install Docker Compose first."
-        echo "Visit: https://docs.docker.com/compose/install/"
+        echo ""
+        echo "🔧 Docker Compose Installation:"
+        echo "  - Docker Desktop includes Docker Compose"
+        echo "  - For standalone installation: https://docs.docker.com/compose/install/"
+        echo "  - Linux: sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose"
+        echo "  - Then: sudo chmod +x /usr/local/bin/docker-compose"
         exit 1
     fi
     
     # Check if Docker is running
     if ! docker info >/dev/null 2>&1; then
         print_error "Docker is not running. Please start Docker first."
+        echo ""
+        echo "🚀 Start Docker:"
+        case "$(uname -s)" in
+            Darwin*)
+                echo "  macOS: Open Docker Desktop from Applications"
+                echo "  Or run: open -a Docker"
+                ;;
+            Linux*)
+                echo "  Linux: sudo systemctl start docker"
+                echo "  Enable on boot: sudo systemctl enable docker"
+                ;;
+            CYGWIN*|MINGW32*|MSYS*|MINGW*)
+                echo "  Windows: Start Docker Desktop from Start Menu"
+                ;;
+        esac
         exit 1
     fi
     
